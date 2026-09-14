@@ -8,16 +8,20 @@
   register: iw_gw_own_query
   changed_when: false
 
-- name: Assert groupware OWN_ID values are numeric
+- name: Set groupware OWN_IDs
+  when: iw_gw_own_query.stdout | trim | length > 0
+  ansible.builtin.set_fact:
+    iw_gw_own_ids: "{{ iw_gw_own_query.stdout_lines | map('trim') | select() | list }}"
+    iw_gw_own_ids_sql: "{{ \"'\" ~ (iw_gw_own_query.stdout_lines | map('trim') | select() | map('replace', \"'\", \"''\") | join(\"','\")) ~ \"'\" }}"
+
+- name: Assert groupware OWN_ID values are safe identifiers
   when: iw_gw_own_query.stdout | trim | length > 0
   ansible.builtin.assert:
     that:
       - (iw_gw_own_ids | length) > 0
-      - (iw_gw_own_ids | reject('regex', '^[0-9]+$') | list | length) == 0
+      - (iw_gw_own_ids | reject('regex', '^[A-Za-z0-9._-]+$') | list | length) == 0
     fail_msg: "Unexpected EventOwner OWN_ID values for '{{ iw_source_email }}': {{ iw_gw_own_query.stdout }}"
     quiet: true
-  vars:
-    iw_gw_own_ids: "{{ iw_gw_own_query.stdout_lines | map('trim') | select() | list }}"
 
 - name: Update EventOwner and EventGroup emails
   when: iw_gw_own_query.stdout | trim | length > 0
@@ -27,12 +31,10 @@
       START TRANSACTION;
       UPDATE EventOwner
         SET OWN_Email = '{{ iw_dest_email_sql }}'
-        WHERE OWN_ID IN ({{ iw_gw_own_ids | join(',') }});
+        WHERE OWN_ID IN ({{ iw_gw_own_ids_sql }});
       UPDATE EventGroup
         SET GrpDailyEventsEmail = '{{ iw_dest_email_sql }}',
             GrpReminderEmail = '{{ iw_dest_email_sql }}'
-        WHERE GRPOWN_ID IN ({{ iw_gw_own_ids | join(',') }});
+        WHERE GRPOWN_ID IN ({{ iw_gw_own_ids_sql }});
       COMMIT;
       "
-  vars:
-    iw_gw_own_ids: "{{ iw_gw_own_query.stdout_lines | map('trim') | select() | list }}"
