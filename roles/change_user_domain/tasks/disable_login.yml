@@ -1,0 +1,14 @@
+---
+- name: Disable source account login
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - set
+      - account
+      - "{{ iw_source_email }}"
+      - u_accountdisabled
+      - "2"
+
+- name: Mark IceWarp restart as required
+  ansible.builtin.set_fact:
+    iw_restart_needed: true

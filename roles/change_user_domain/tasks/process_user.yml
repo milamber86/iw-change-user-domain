@@ -1,0 +1,30 @@
+---
+- name: Run preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Mutate account on the IceWarp host
+  when: not ansible_check_mode
+  block:
+    - name: Disable account login
+      ansible.builtin.include_tasks: disable_login.yml
+
+    - name: Move user maildir
+      ansible.builtin.include_tasks: move_maildir.yml
+
+    - name: Move user archive
+      ansible.builtin.include_tasks: move_archive.yml
+
+    - name: Update accounts database
+      ansible.builtin.include_tasks: update_accounts.yml
+
+    - name: Update groupware database
+      ansible.builtin.include_tasks: update_groupware.yml
+
+    - name: Update directory cache database
+      ansible.builtin.include_tasks: update_directorycache.yml
+
+    - name: Update webclient database
+      ansible.builtin.include_tasks: update_webclient.yml
+
+    - name: Post-move account cleanup
+      ansible.builtin.include_tasks: post_account.yml

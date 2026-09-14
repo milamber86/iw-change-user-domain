@@ -1,0 +1,14 @@
+---
+- name: Ensure destination archive parent exists
+  ansible.builtin.file:
+    path: "{{ iw_dest_archive_path_n }}"
+    state: directory
+  when: iw_archive_present | bool
+
+- name: Move archive to the destination domain path
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ iw_src_archive }}"
+      - "{{ iw_dst_archive }}"
+  when: iw_archive_present | bool

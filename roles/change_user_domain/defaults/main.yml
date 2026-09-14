@@ -1,0 +1,20 @@
+---
+iw_tool_sh: /opt/icewarp/tool.sh
+iw_icewarpd: /opt/icewarp/icewarpd.sh
+iw_enable_login_after: false
+
+# Extra-var override for a single account. When non-empty, replaces iw_users.
+iw_user: ""
+
+# Required inventory/group_vars (empty so missing values fail asserts).
+iw_source_domain: ""
+iw_dest_domain: ""
+iw_source_mailbox_path: ""
+iw_dest_mailbox_path: ""
+iw_source_archive_path: ""
+iw_dest_archive_path: ""
+iw_accounts_db: ""
+iw_groupware_db: ""
+iw_directorycache_db: ""
+iw_webclient_db: ""
+iw_users: []

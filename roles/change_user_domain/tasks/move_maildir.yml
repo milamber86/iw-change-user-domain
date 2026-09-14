@@ -1,0 +1,7 @@
+---
+- name: Move maildir to the destination domain path
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ iw_src_maildir }}"
+      - "{{ iw_dst_maildir }}"

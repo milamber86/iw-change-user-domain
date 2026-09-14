@@ -1,0 +1,9 @@
+---
+- name: Update webclient folder.account_id and folder.path
+  ansible.builtin.shell:
+    cmd: >
+      mysql --batch -N {{ iw_webclient_db | quote }} -e
+      "UPDATE folder
+      SET account_id = '{{ iw_dest_email_sql }}',
+          path = REPLACE(path, '{{ iw_src_maildir_sql }}', '{{ iw_dst_maildir_sql }}')
+      WHERE account_id = '{{ iw_source_email_sql }}';"

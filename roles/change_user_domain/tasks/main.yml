@@ -1,0 +1,47 @@
+---
+- name: Assert required variables are set
+  ansible.builtin.assert:
+    that:
+      - iw_source_domain | length > 0
+      - iw_dest_domain | length > 0
+      - iw_source_domain != iw_dest_domain
+      - iw_source_mailbox_path | length > 0
+      - iw_dest_mailbox_path | length > 0
+      - iw_source_archive_path | length > 0
+      - iw_dest_archive_path | length > 0
+      - iw_accounts_db | length > 0
+      - iw_groupware_db | length > 0
+      - iw_directorycache_db | length > 0
+      - iw_webclient_db | length > 0
+      - (iw_user | default('') | string | length > 0) or (iw_users | default([]) | length > 0)
+    fail_msg: >-
+      Required inventory/extra vars are missing or source and destination
+      domains are the same. See inventory/group_vars/all.example.yml.
+    quiet: true
+
+- name: Normalize paths and resolve the user list
+  ansible.builtin.set_fact:
+    iw_source_mailbox_path_n: "{{ iw_source_mailbox_path.rstrip('/') }}"
+    iw_dest_mailbox_path_n: "{{ iw_dest_mailbox_path.rstrip('/') }}"
+    iw_source_archive_path_n: "{{ iw_source_archive_path.rstrip('/') }}"
+    iw_dest_archive_path_n: "{{ iw_dest_archive_path.rstrip('/') }}"
+    iw_users_resolved: "{{ [iw_user] if (iw_user | default('') | string | length > 0) else ([iw_users] if iw_users is string else (iw_users | default([]))) }}"
+    iw_restart_needed: "{{ iw_restart_needed | default(false) | bool }}"
+
+- name: Change user domains
+  block:
+    - name: Process each user
+      ansible.builtin.include_tasks: process_user.yml
+      loop: "{{ iw_users_resolved }}"
+      loop_control:
+        loop_var: iw_user_item
+        label: "{{ iw_user_item }}"
+  always:
+    - name: Restart IceWarp services
+      ansible.builtin.command:
+        argv:
+          - "{{ iw_icewarpd }}"
+          - --restart
+          - all
+      when: iw_restart_needed | bool
+      timeout: 600

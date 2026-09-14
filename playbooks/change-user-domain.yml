@@ -1,0 +1,8 @@
+---
+- name: Change IceWarp user domain
+  hosts: icewarp
+  remote_user: root
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - change_user_domain

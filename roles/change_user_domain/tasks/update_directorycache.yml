@@ -1,0 +1,9 @@
+---
+- name: Replace domain prefix in directorycache.search_path
+  ansible.builtin.shell:
+    cmd: >
+      mysql --batch -N {{ iw_directorycache_db | quote }} -e
+      "UPDATE directorycache
+      SET search_path = REPLACE(search_path, '{{ iw_dircache_old_prefix_sql }}', '{{ iw_dircache_new_prefix_sql }}')
+      WHERE search_path = '{{ iw_dircache_old_prefix_sql }}'
+         OR search_path LIKE '{{ iw_dircache_old_prefix_sql }}/%';"

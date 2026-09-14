@@ -1,0 +1,62 @@
+---
+- name: Export destination u_mailboxpath
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - export
+      - account
+      - "{{ iw_dest_email }}"
+      - u_mailboxpath
+  register: iw_mailboxpath_export
+  changed_when: false
+  failed_when: >-
+    iw_mailboxpath_export.rc != 0
+    or ('not found' in ((iw_mailboxpath_export.stdout ~ iw_mailboxpath_export.stderr) | lower))
+
+- name: Set rewritten u_mailboxpath
+  ansible.builtin.set_fact:
+    iw_new_mailboxpath: "{{ (iw_mailboxpath_export.stdout.split(',')[1] | default('') | trim | regex_replace(iw_source_domain | regex_escape, iw_dest_domain)) if (iw_mailboxpath_export.stdout.split(',') | length > 1) else '' }}"
+
+- name: Set destination u_mailboxpath
+  when: iw_new_mailboxpath | length > 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - set
+      - account
+      - "{{ iw_dest_email }}"
+      - u_mailboxpath
+      - "{{ iw_new_mailboxpath }}"
+
+- name: Stat destination webmail settings.xml
+  ansible.builtin.stat:
+    path: "{{ iw_dst_maildir }}/~webmail/settings.xml"
+  register: iw_settings_xml_stat
+
+- name: Rewrite domain in webmail settings.xml
+  when: iw_settings_xml_stat.stat.exists | default(false)
+  ansible.builtin.replace:
+    path: "{{ iw_dst_maildir }}/~webmail/settings.xml"
+    regexp: "{{ iw_source_domain | regex_escape }}"
+    replace: "{{ iw_dest_domain }}"
+
+- name: Refresh destination directory cache
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - set
+      - account
+      - "{{ iw_dest_email }}"
+      - u_directorycache_refreshnow
+      - "1"
+
+- name: Re-enable destination account login
+  when: iw_enable_login_after | bool
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - set
+      - account
+      - "{{ iw_dest_email }}"
+      - u_accountdisabled
+      - "0"

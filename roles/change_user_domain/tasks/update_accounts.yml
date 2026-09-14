@@ -1,0 +1,29 @@
+---
+- name: Look up accounts U_ID
+  ansible.builtin.shell:
+    cmd: >
+      mysql --batch -N {{ iw_accounts_db | quote }} -e
+      "SELECT U_ID FROM Users
+      WHERE U_Mailbox = '{{ iw_mailbox_sql }}'
+      AND U_Domain = '{{ iw_source_domain_sql }}';"
+  register: iw_uid_query
+  changed_when: false
+  failed_when: iw_uid_query.rc != 0 or not ((iw_uid_query.stdout | trim) is regex('^[0-9]+$'))
+
+- name: Set accounts U_ID
+  ansible.builtin.set_fact:
+    iw_user_id: "{{ iw_uid_query.stdout | trim }}"
+
+- name: Update Users.U_Domain and Aliases.A_Domain
+  ansible.builtin.shell:
+    cmd: |
+      mysql --batch -N {{ iw_accounts_db | quote }} -e "
+      START TRANSACTION;
+      UPDATE Users
+        SET U_Domain = '{{ iw_dest_domain_sql }}'
+        WHERE U_ID = {{ iw_user_id }};
+      UPDATE Aliases
+        SET A_Domain = '{{ iw_dest_domain_sql }}'
+        WHERE A_UserID = {{ iw_user_id }};
+      COMMIT;
+      "

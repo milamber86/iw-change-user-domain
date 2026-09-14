@@ -1,0 +1,30 @@
+---
+# Source and destination IceWarp domains (local-part is unchanged).
+iw_source_domain: olddomain.loc
+iw_dest_domain: newdomain.loc
+
+# Domain mailbox roots from: tool.sh export domain '<domain>' d_basemailboxpath
+iw_source_mailbox_path: /opt/icewarp/mail/olddomain.loc/
+iw_dest_mailbox_path: /opt/icewarp/mail/newdomain.loc/
+
+# Domain archive roots. Per-user path is <root>/<u_mailbox>
+# Default layout: /opt/icewarp/archive/<domain>/<user>
+iw_source_archive_path: /opt/icewarp/archive/olddomain.loc/
+iw_dest_archive_path: /opt/icewarp/archive/newdomain.loc/
+
+# IceWarp database names (MySQL on the IceWarp host uses ~/.my.cnf).
+iw_accounts_db: accounts
+iw_groupware_db: groupware
+iw_directorycache_db: dbiwc127dc
+iw_webclient_db: dbiwc127wc
+
+# Local-parts or full source emails. Override with -e iw_user=example.user
+iw_users:
+  - example.user
+
+# Optional. Leave login disabled after the move (u_accountdisabled 2).
+# iw_enable_login_after: false
+
+# Optional paths.
+# iw_tool_sh: /opt/icewarp/tool.sh
+# iw_icewarpd: /opt/icewarp/icewarpd.sh
