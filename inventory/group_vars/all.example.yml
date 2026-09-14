@@ -13,8 +13,8 @@ iw_source_archive_path: /opt/icewarp/archive/olddomain.loc/
 iw_dest_archive_path: /opt/icewarp/archive/newdomain.loc/
 
 # IceWarp database names (MySQL on the IceWarp host uses ~/.my.cnf).
-iw_accounts_db: accounts
-iw_groupware_db: groupware
+iw_accounts_db: dbiwc127acc
+iw_groupware_db: dbiwc127gw
 iw_directorycache_db: dbiwc127dc
 iw_webclient_db: dbiwc127wc
 

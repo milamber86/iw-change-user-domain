@@ -1,7 +1,7 @@
 ---
 iw_tool_sh: /opt/icewarp/tool.sh
 iw_icewarpd: /opt/icewarp/icewarpd.sh
-iw_enable_login_after: false
+iw_enable_login_after: true
 
 # Extra-var override for a single account. When non-empty, replaces iw_users.
 iw_user: ""
