@@ -145,31 +145,6 @@
     iw_wc_db_eq: "{{ iw_wc_conn.split(';') | select('match', '(?i)^(database|dbname)=') | list }}"
     iw_wc_db_parsed: "{{ (iw_wc_db_eq[0].split('=', 1)[1] | trim) if (iw_wc_db_eq | length > 0) else '' }}"
 
-# #region agent log
-- name: Debug ingest webclient DB parse
-  when: iw_webclient_db | default('') | length > 0
-  ansible.builtin.uri:
-    url: http://127.0.0.1:7447/ingest/f20455b0-f63a-48e8-b144-f0d1b0b6b7e3
-    method: POST
-    body_format: json
-    headers:
-      Content-Type: application/json
-      X-Debug-Session-Id: eb205e
-    body:
-      sessionId: eb205e
-      runId: post-fix
-      hypothesisId: B
-      location: roles/change_user_domain/tasks/discover.yml
-      message: parsed webclient database name
-      timestamp: "{{ lookup('pipe', 'date +%s') | int * 1000 }}"
-      data:
-        iw_webclient_db: "{{ iw_webclient_db }}"
-    status_code: [200, 201, 204]
-  delegate_to: localhost
-  become: false
-  failed_when: false
-# #endregion
-
 - name: Verify MySQL connectivity to IceWarp databases
   ansible.builtin.shell:
     cmd: mysql --batch -N {{ item | quote }} -e "SHOW TABLES;"
