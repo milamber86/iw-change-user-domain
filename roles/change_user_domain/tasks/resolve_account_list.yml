@@ -1,4 +1,17 @@
 ---
+- name: Assert whole-domain export has inventory domains
+  when:
+    - iw_user | default('') | string | length == 0
+    - iw_users | default([]) | length == 0
+  ansible.builtin.assert:
+    that:
+      - iw_source_domain | length > 0
+      - iw_dest_domain | length > 0
+    fail_msg: >-
+      Whole-domain export needs iw_source_domain and iw_dest_domain.
+      Set iw_users / iw_user with full emails, or set both inventory domains.
+    quiet: true
+
 - name: Export all source-domain accounts
   when:
     - iw_user | default('') | string | length == 0

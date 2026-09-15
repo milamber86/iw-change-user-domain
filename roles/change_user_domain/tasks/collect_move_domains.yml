@@ -1,0 +1,30 @@
+---
+- name: Reset unique domain lists
+  ansible.builtin.set_fact:
+    iw_unique_source_domains: []
+    iw_unique_dest_domains: []
+
+- name: Collect domains from each account item
+  ansible.builtin.include_tasks: collect_one_move_domain.yml
+  loop: "{{ iw_users_resolved }}"
+  loop_control:
+    loop_var: iw_collect_item
+    label: "{{ iw_collect_item }}"
+
+- name: Assert collected domains are set
+  ansible.builtin.assert:
+    that:
+      - iw_unique_source_domains | length > 0
+      - iw_unique_dest_domains | length > 0
+      - iw_unique_source_domains | reject('eq', '') | list | length == (iw_unique_source_domains | length)
+      - iw_unique_dest_domains | reject('eq', '') | list | length == (iw_unique_dest_domains | length)
+    fail_msg: >-
+      Could not derive source/dest domains from the account list.
+      Use full emails (user@domain), or set inventory iw_source_domain / iw_dest_domain
+      for local-parts. Got source={{ iw_unique_source_domains }} dest={{ iw_unique_dest_domains }}.
+    quiet: true
+
+- name: Log unique move domains
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "DOMAINS source={{ iw_unique_source_domains | join(',') }} dest={{ iw_unique_dest_domains | join(',') }}"

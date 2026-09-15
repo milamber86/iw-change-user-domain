@@ -1,15 +1,20 @@
 ---
-# Required: source and destination IceWarp domains.
-iw_source_domain: olddomain.loc
-iw_dest_domain: newdomain.loc
+# Optional defaults. Full emails (user@domain) set that side's domain and are
+# not overridden by these. Local-parts and whole-domain export still need both.
+# iw_source_domain: olddomain.loc
+# iw_dest_domain: newdomain.loc
 
-# Optional. Local-parts, full source emails, or "old@src,new@dst" alias renames.
-# If omitted (and iw_user is not set), every account in the source domain is moved.
+# Optional. Local-parts, full source emails, or "old@src,new@dst" (mixed pairs OK).
+# If omitted (and iw_user is not set), every account in iw_source_domain is moved
+# (requires both inventory domains).
 iw_users:
-  - example.user
-  # - old.alias@olddomain.loc,new.alias@newdomain.loc
+  - simone.jagl@noe.gruene.at,simone.jagl@parlamentsklub.gruene.at
+  - other.user@foo.loc,other.user@bar.loc
+  # - example.user
 
-# Optional extra-var overrides (otherwise discovered from tool.sh / server.xml):
+# Optional extra-var overrides (otherwise discovered from tool.sh / server.xml).
+# Mailbox/archive path overrides apply only when the account domain equals the
+# corresponding inventory domain; otherwise mail/<domain> and archive/<domain>.
 # iw_source_mailbox_path: /opt/icewarp/mail/olddomain.loc/
 # iw_dest_mailbox_path: /opt/icewarp/mail/newdomain.loc/
 # iw_source_archive_path: /opt/icewarp/archive/olddomain.loc/

@@ -1,68 +1,43 @@
 ---
-- name: Stat source mailbox and config paths
+- name: Stat IceWarp config path
   ansible.builtin.stat:
-    path: "{{ item }}"
-  loop:
-    - "{{ iw_source_mailbox_path_n }}"
-    - "{{ iw_config_path_n }}"
-  loop_control:
-    label: "{{ item }}"
-  register: iw_src_root_stats
+    path: "{{ iw_config_path_n }}"
+  register: iw_config_root_stat
   check_mode: false
 
-- name: Assert source mailbox and config paths exist
+- name: Assert config path exists
+  ansible.builtin.assert:
+    that:
+      - iw_config_root_stat.stat.exists | default(false)
+      - iw_config_root_stat.stat.isdir | default(false)
+    fail_msg: "Required config path '{{ iw_config_path_n }}' does not exist on the IceWarp host."
+    quiet: true
+
+- name: Stat source mailbox roots
+  ansible.builtin.stat:
+    path: "{{ iw_src_mail_root }}"
+  loop: "{{ iw_unique_source_domains }}"
+  loop_control:
+    label: "{{ iw_src_mail_root }}"
+  vars:
+    iw_src_mail_root: "{{ iw_source_mailbox_path_n if ((iw_source_mailbox_path_n | length > 0) and (item | lower == (iw_source_domain | default('') | lower))) else (iw_mail_path_n ~ '/' ~ item) }}"
+  register: iw_src_mail_root_stats
+  check_mode: false
+
+- name: Assert source mailbox roots exist
   ansible.builtin.assert:
     that:
       - item.stat.exists | default(false)
       - item.stat.isdir | default(false)
-    fail_msg: "Required path '{{ item.item }}' does not exist on the IceWarp host."
+    fail_msg: "Required source mailbox path for domain '{{ item.item }}' does not exist on the IceWarp host."
     quiet: true
-  loop: "{{ iw_src_root_stats.results }}"
+  loop: "{{ iw_src_mail_root_stats.results }}"
   loop_control:
     label: "{{ item.item }}"
 
-- name: Check whether the destination domain exists
-  ansible.builtin.command:
-    argv:
-      - "{{ iw_tool_sh }}"
-      - export
-      - domain
-      - "{{ iw_dest_domain }}"
-  register: iw_dst_domain_export
-  changed_when: false
-  check_mode: false
-  failed_when: false
-
-- name: Create destination domain
-  when:
-    - not ansible_check_mode
-    - "'not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower)"
-  ansible.builtin.command:
-    argv:
-      - "{{ iw_tool_sh }}"
-      - create
-      - domain
-      - "{{ iw_dest_domain }}"
-  register: iw_create_domain
-
-- name: Log destination domain create or skip
-  ansible.builtin.include_tasks: log.yml
-  vars:
-    iw_log_message: "{{ ('OK  create domain ' ~ iw_dest_domain ~ ' rc=' ~ (iw_create_domain.rc | default('n/a') | string)) if ((not ansible_check_mode) and ('not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower))) else ('OK  destination domain exists ' ~ iw_dest_domain) }}"
-
-- name: Ensure destination mailbox, archive, and config directories exist
-  when: not ansible_check_mode
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ iw_owner }}"
-    group: "{{ iw_group }}"
-  loop:
-    - "{{ iw_dest_mailbox_path_n }}"
-    - "{{ iw_dest_archive_path_n }}"
-    - "{{ iw_config_path_n }}/{{ iw_dest_domain }}"
-
-- name: Log destination directories
-  ansible.builtin.include_tasks: log.yml
-  vars:
-    iw_log_message: "OK  dest dirs {{ iw_dest_mailbox_path_n }} {{ iw_dest_archive_path_n }} {{ iw_config_path_n }}/{{ iw_dest_domain }}"
+- name: Ensure each destination domain and directories
+  ansible.builtin.include_tasks: ensure_one_dest_domain.yml
+  loop: "{{ iw_unique_dest_domains }}"
+  loop_control:
+    loop_var: iw_ensure_domain
+    label: "{{ iw_ensure_domain }}"

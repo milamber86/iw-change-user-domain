@@ -20,7 +20,7 @@
     content: |
       # IceWarp domain change log
       # host={{ inventory_hostname }}
-      # source={{ iw_source_domain }} dest={{ iw_dest_domain }}
+      # inventory_source={{ iw_source_domain | default('') }} inventory_dest={{ iw_dest_domain | default('') }}
       # check_mode={{ ansible_check_mode }}
       #
   check_mode: false
@@ -28,4 +28,4 @@
 - name: Log play start
   ansible.builtin.include_tasks: log.yml
   vars:
-    iw_log_message: "START {{ iw_source_domain }} -> {{ iw_dest_domain }}"
+    iw_log_message: "{{ 'START ' ~ iw_source_domain ~ ' -> ' ~ iw_dest_domain if ((iw_source_domain | length > 0) and (iw_dest_domain | length > 0)) else 'START multi-domain / from emails' }}"

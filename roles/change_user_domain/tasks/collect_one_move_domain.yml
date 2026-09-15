@@ -1,0 +1,12 @@
+---
+- name: Add this account's domains to the unique lists
+  ansible.builtin.set_fact:
+    iw_unique_source_domains: "{{ (iw_unique_source_domains + [iw_c_src_dom]) | unique | list }}"
+    iw_unique_dest_domains: "{{ (iw_unique_dest_domains + [iw_c_dst_dom]) | unique | list }}"
+  vars:
+    iw_c_src_spec: "{{ (iw_collect_item | string).split(',')[0] | trim }}"
+    iw_c_dst_spec: "{{ ((iw_collect_item | string).split(',')[1] | trim) if ((iw_collect_item | string).split(',') | length > 1) else '' }}"
+    iw_c_src_email: "{{ iw_c_src_spec if '@' in iw_c_src_spec else (iw_c_src_spec ~ '@' ~ iw_source_domain) }}"
+    iw_c_dst_email: "{{ (iw_c_dst_spec if '@' in iw_c_dst_spec else (iw_c_dst_spec ~ '@' ~ iw_dest_domain)) if (iw_c_dst_spec | length > 0) else ((iw_c_src_email.split('@')[0] if '@' in iw_c_src_email else iw_c_src_spec) ~ '@' ~ iw_dest_domain) }}"
+    iw_c_src_dom: "{{ (iw_c_src_email.split('@')[1] | default('') | lower) if ('@' in iw_c_src_email) else '' }}"
+    iw_c_dst_dom: "{{ (iw_c_dst_email.split('@')[1] | default('') | lower) if ('@' in iw_c_dst_email) else '' }}"

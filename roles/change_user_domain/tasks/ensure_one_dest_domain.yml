@@ -1,0 +1,51 @@
+---
+- name: Check whether the destination domain exists
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - export
+      - domain
+      - "{{ iw_ensure_domain }}"
+  register: iw_dst_domain_export
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Create destination domain
+  when:
+    - not ansible_check_mode
+    - "'not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower)"
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - create
+      - domain
+      - "{{ iw_ensure_domain }}"
+  register: iw_create_domain
+
+- name: Log destination domain create or skip
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "{{ ('OK  create domain ' ~ iw_ensure_domain ~ ' rc=' ~ (iw_create_domain.rc | default('n/a') | string)) if ((not ansible_check_mode) and ('not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower))) else ('OK  destination domain exists ' ~ iw_ensure_domain) }}"
+
+- name: Set destination directory paths for this domain
+  ansible.builtin.set_fact:
+    iw_ensure_mailbox: "{{ iw_dest_mailbox_path_n if ((iw_dest_mailbox_path_n | length > 0) and (iw_ensure_domain | lower == (iw_dest_domain | default('') | lower))) else (iw_mail_path_n ~ '/' ~ iw_ensure_domain) }}"
+    iw_ensure_archive: "{{ iw_dest_archive_path_n if ((iw_dest_archive_path_n | length > 0) and (iw_ensure_domain | lower == (iw_dest_domain | default('') | lower))) else (iw_archive_root_n ~ '/' ~ iw_ensure_domain) }}"
+
+- name: Ensure destination mailbox, archive, and config directories exist
+  when: not ansible_check_mode
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ iw_owner }}"
+    group: "{{ iw_group }}"
+  loop:
+    - "{{ iw_ensure_mailbox }}"
+    - "{{ iw_ensure_archive }}"
+    - "{{ iw_config_path_n }}/{{ iw_ensure_domain }}"
+
+- name: Log destination directories
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  dest dirs {{ iw_ensure_mailbox }} {{ iw_ensure_archive }} {{ iw_config_path_n }}/{{ iw_ensure_domain }}"

@@ -23,8 +23,8 @@
   ansible.builtin.set_fact:
     iw_new_mailboxpath: "{{ iw_mailboxpath_custom if (iw_custom_target | bool and (iw_mailboxpath_rewritten | length > 0)) else iw_mailboxpath_rewritten }}"
   vars:
-    iw_mailboxpath_rewritten: "{{ (iw_mailboxpath_export.stdout.split(',')[1] | default('') | trim | regex_replace(iw_source_domain | regex_escape, iw_dest_domain)) if (iw_mailboxpath_export.stdout.split(',') | length > 1) else '' }}"
-    iw_mailboxpath_custom: "{{ iw_dest_domain }}/{{ iw_dest_username }}/"
+    iw_mailboxpath_rewritten: "{{ (iw_mailboxpath_export.stdout.split(',')[1] | default('') | trim | regex_replace(iw_acct_source_domain | regex_escape, iw_acct_dest_domain)) if (iw_mailboxpath_export.stdout.split(',') | length > 1) else '' }}"
+    iw_mailboxpath_custom: "{{ iw_acct_dest_domain }}/{{ iw_dest_username }}/"
 
 - name: Set destination u_mailboxpath
   when:
@@ -63,8 +63,8 @@
   when: iw_settings_xml_stat.stat.exists | default(false)
   ansible.builtin.replace:
     path: "{{ iw_dst_maildir }}/~webmail/settings.xml"
-    regexp: "{{ (iw_source_email if (iw_custom_target | bool) else iw_source_domain) | regex_escape }}"
-    replace: "{{ iw_dest_email if (iw_custom_target | bool) else iw_dest_domain }}"
+    regexp: "{{ (iw_source_email if (iw_custom_target | bool) else iw_acct_source_domain) | regex_escape }}"
+    replace: "{{ iw_dest_email if (iw_custom_target | bool) else iw_acct_dest_domain }}"
   register: iw_settings_replace
 
 - name: Log settings.xml rewrite

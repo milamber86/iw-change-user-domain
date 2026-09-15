@@ -122,12 +122,12 @@
   ansible.builtin.set_fact:
     iw_config_path: "{{ (iw_disc_cfg.stdout.split(':', 1)[1] | default('') | trim).rstrip('/') }}"
 
-- name: Derive domain mailbox and archive paths
+- name: Derive play-level mailbox and archive paths when inventory domains are set
   ansible.builtin.set_fact:
-    iw_source_mailbox_path: "{{ iw_source_mailbox_path if (iw_source_mailbox_path | length > 0) else ((iw_mail_path.rstrip('/') ~ '/' ~ iw_source_domain) if (iw_mail_path | length > 0) else '') }}"
-    iw_dest_mailbox_path: "{{ iw_dest_mailbox_path if (iw_dest_mailbox_path | length > 0) else ((iw_mail_path.rstrip('/') ~ '/' ~ iw_dest_domain) if (iw_mail_path | length > 0) else '') }}"
-    iw_source_archive_path: "{{ iw_source_archive_path if (iw_source_archive_path | length > 0) else ((iw_archive_root.rstrip('/') ~ '/' ~ iw_source_domain) if (iw_archive_root | length > 0) else '') }}"
-    iw_dest_archive_path: "{{ iw_dest_archive_path if (iw_dest_archive_path | length > 0) else ((iw_archive_root.rstrip('/') ~ '/' ~ iw_dest_domain) if (iw_archive_root | length > 0) else '') }}"
+    iw_source_mailbox_path: "{{ iw_source_mailbox_path if (iw_source_mailbox_path | length > 0) else ((iw_mail_path.rstrip('/') ~ '/' ~ iw_source_domain) if ((iw_mail_path | length > 0) and (iw_source_domain | length > 0)) else '') }}"
+    iw_dest_mailbox_path: "{{ iw_dest_mailbox_path if (iw_dest_mailbox_path | length > 0) else ((iw_mail_path.rstrip('/') ~ '/' ~ iw_dest_domain) if ((iw_mail_path | length > 0) and (iw_dest_domain | length > 0)) else '') }}"
+    iw_source_archive_path: "{{ iw_source_archive_path if (iw_source_archive_path | length > 0) else ((iw_archive_root.rstrip('/') ~ '/' ~ iw_source_domain) if ((iw_archive_root | length > 0) and (iw_source_domain | length > 0)) else '') }}"
+    iw_dest_archive_path: "{{ iw_dest_archive_path if (iw_dest_archive_path | length > 0) else ((iw_archive_root.rstrip('/') ~ '/' ~ iw_dest_domain) if ((iw_archive_root | length > 0) and (iw_dest_domain | length > 0)) else '') }}"
 
 - name: Slurp webmail server.xml for database name
   when: iw_webclient_db | length == 0

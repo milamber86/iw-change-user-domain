@@ -4,17 +4,19 @@ Ansible playbook that moves IceWarp accounts from one domain to another on a rem
 
 This operation is **officially unsupported**. Take filesystem and MySQL backups before running, and test on a non-production copy first.
 
-The playbook creates the destination domain if it does not exist. It supports IceWarp account types 0–8 (user, mailing list, executable, notification, static route, catalog, list server, group, resource). It does **not** rewrite group membership lists.
+The playbook creates each destination domain if it does not exist. It supports IceWarp account types 0–8 (user, mailing list, executable, notification, static route, catalog, list server, group, resource). It does **not** rewrite group membership lists.
 
-Database names and mailbox/archive/config paths are discovered from `tool.sh` and `_webmail/server.xml` unless you set them in inventory or extra-vars.
+Each account can carry its own source/dest domain pair. Full emails (`user@domain`) set that side's domain. Inventory `iw_source_domain` / `iw_dest_domain` are defaults only (needed for local-parts and whole-domain export); they do not override domains taken from emails.
+
+Database names and mailbox/archive/config roots are discovered from `tool.sh` and `_webmail/server.xml` unless you set them in inventory or extra-vars.
 
 ## What it does
 
-1. Discover DB names and paths (or use overrides). Check MySQL connectivity.
-2. Create the destination domain if missing; create dest mail/archive/config directories as `icewarp:icewarp`.
-3. Resolve the account list (`iw_users` / `iw_user`, or export `*@source` for the whole domain).
+1. Discover DB names and mail/archive/config roots (or use overrides). Check MySQL connectivity.
+2. Resolve the account list (`iw_users` / `iw_user`, or export `*@source` for the whole domain).
+3. Collect unique source and dest domains from that list. Create each dest domain if missing; create dest mail/archive/config directories as `icewarp:icewarp`.
 4. Disable login on all selected accounts, then restart IceWarp.
-5. For each account:
+5. For each account (paths from that account's domain pair):
    - Verify the source exists and the destination account does not.
    - Move maildir and `config/<domain>/<alias>.txt` when those paths exist; skip types with no mailbox data.
    - Move archive when present and the dest archive path does not exist.
@@ -41,15 +43,17 @@ cp inventory/hosts.example.yml inventory/hosts.yml
 cp inventory/group_vars/all.example.yml inventory/group_vars/all.yml
 ```
 
-Required variables:
+Inventory domains are optional when every CSV item uses full emails:
 
 | Variable | Meaning |
 | --- | --- |
-| `iw_source_domain` / `iw_dest_domain` | IceWarp domains |
+| `iw_source_domain` / `iw_dest_domain` | Defaults for local-parts and whole-domain export. Not required when emails include `@domain`. Play-level domains do not override domains taken from emails. |
 
-Optional: `iw_users` (local-parts, `user@source`, or `old@source,new@dest`). If unset, every account in the source domain is moved.
+Optional: `iw_users` (local-parts, `user@source`, or `old@src,new@dst` with mixed domain pairs). If omitted and inventory domains are set, every account in the source domain is moved.
 
-Optional overrides: mailbox/archive/config paths and `iw_accounts_db`, `iw_groupware_db`, `iw_directorycache_db`, `iw_eas_db`, `iw_webclient_db`. See [inventory/group_vars/all.example.yml](inventory/group_vars/all.example.yml).
+Source and dest domain must differ **per account**.
+
+Optional overrides: mailbox/archive/config paths and `iw_accounts_db`, `iw_groupware_db`, `iw_directorycache_db`, `iw_eas_db`, `iw_webclient_db`. Inventory mailbox/archive path overrides apply only when that account's domain equals the corresponding inventory domain; otherwise `{{ iw_mail_path }}/{{ domain }}` and `{{ iw_archive_root }}/{{ domain }}`. See [inventory/group_vars/all.example.yml](inventory/group_vars/all.example.yml).
 
 A non-empty custom `u_autoarchivepath` that does not match the source archive path fails the play.
 
@@ -61,11 +65,27 @@ Run from the repository root.
 ansible-playbook -i inventory/hosts.yml playbooks/change-user-domain.yml
 ```
 
-Single account:
+Single account (inventory domains as defaults):
 
 ```bash
 ansible-playbook -i inventory/hosts.yml playbooks/change-user-domain.yml -e iw_user=example.user
 ansible-playbook -i inventory/hosts.yml playbooks/change-user-domain.yml -e iw_user=example.user@olddomain.loc
+```
+
+Full emails only (no inventory domains required):
+
+```bash
+ansible-playbook -i inventory/hosts.yml playbooks/change-user-domain.yml \
+  -e iw_user=simone.jagl@noe.gruene.at \
+  -e iw_dest_email=simone.jagl@parlamentsklub.gruene.at
+```
+
+Mixed domain pairs in one run (inventory `iw_users` or extra-vars):
+
+```yaml
+iw_users:
+  - simone.jagl@noe.gruene.at,simone.jagl@parlamentsklub.gruene.at
+  - other.user@foo.loc,other.user@bar.loc
 ```
 
 Alias rename:

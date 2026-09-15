@@ -1,11 +1,13 @@
 ---
-- name: Assert source and destination domains are set
+- name: Assert a user list or both inventory domains
   ansible.builtin.assert:
     that:
-      - iw_source_domain | length > 0
-      - iw_dest_domain | length > 0
-      - iw_source_domain != iw_dest_domain
-    fail_msg: "iw_source_domain and iw_dest_domain are required and must differ."
+      - (iw_user | default('') | string | length > 0) or (iw_users | default([]) | length > 0) or ((iw_source_domain | length > 0) and (iw_dest_domain | length > 0))
+      - (iw_source_domain | length == 0) or (iw_dest_domain | length == 0) or (iw_source_domain != iw_dest_domain)
+    fail_msg: >-
+      Set iw_users / iw_user (full emails, or local-parts with inventory domains),
+      or set both iw_source_domain and iw_dest_domain for a whole-domain export.
+      When both inventory domains are set, they must differ.
     quiet: true
 
 - name: Initialize domain-change log
@@ -16,7 +18,7 @@
     - name: Discover IceWarp databases and paths
       ansible.builtin.include_tasks: discover.yml
 
-    - name: Assert discovered databases and paths are set
+    - name: Assert discovered databases and roots are set
       ansible.builtin.assert:
         that:
           - iw_accounts_db | length > 0
@@ -24,15 +26,12 @@
           - iw_directorycache_db | length > 0
           - iw_eas_db | length > 0
           - iw_webclient_db | length > 0
-          - iw_mail_path | length > 0 or iw_source_mailbox_path | length > 0
-          - iw_source_mailbox_path | length > 0
-          - iw_dest_mailbox_path | length > 0
-          - iw_source_archive_path | length > 0
-          - iw_dest_archive_path | length > 0
+          - iw_mail_path | length > 0
+          - iw_archive_root | length > 0
           - iw_config_path | length > 0
         fail_msg: >-
-          Could not discover IceWarp database names or paths. Set them in inventory
-          or extra-vars. See inventory/group_vars/all.example.yml.
+          Could not discover IceWarp database names or mail/archive/config roots.
+          Set them in inventory or extra-vars. See inventory/group_vars/all.example.yml.
         quiet: true
 
     - name: Log discovered databases and paths
@@ -40,21 +39,19 @@
       vars:
         iw_log_message: >-
           DISCOVER acc={{ iw_accounts_db }} gw={{ iw_groupware_db }} dc={{ iw_directorycache_db }}
-          eas={{ iw_eas_db }} wc={{ iw_webclient_db }} mail={{ iw_source_mailbox_path }}->{{ iw_dest_mailbox_path }}
-          archive={{ iw_source_archive_path }}->{{ iw_dest_archive_path }} config={{ iw_config_path }}
+          eas={{ iw_eas_db }} wc={{ iw_webclient_db }} mail={{ iw_mail_path }}
+          archive={{ iw_archive_root }} config={{ iw_config_path }}
 
     - name: Normalize paths
       ansible.builtin.set_fact:
-        iw_source_mailbox_path_n: "{{ iw_source_mailbox_path.rstrip('/') }}"
-        iw_dest_mailbox_path_n: "{{ iw_dest_mailbox_path.rstrip('/') }}"
-        iw_source_archive_path_n: "{{ iw_source_archive_path.rstrip('/') }}"
-        iw_dest_archive_path_n: "{{ iw_dest_archive_path.rstrip('/') }}"
+        iw_source_mailbox_path_n: "{{ iw_source_mailbox_path.rstrip('/') if (iw_source_mailbox_path | length > 0) else '' }}"
+        iw_dest_mailbox_path_n: "{{ iw_dest_mailbox_path.rstrip('/') if (iw_dest_mailbox_path | length > 0) else '' }}"
+        iw_source_archive_path_n: "{{ iw_source_archive_path.rstrip('/') if (iw_source_archive_path | length > 0) else '' }}"
+        iw_dest_archive_path_n: "{{ iw_dest_archive_path.rstrip('/') if (iw_dest_archive_path | length > 0) else '' }}"
         iw_config_path_n: "{{ iw_config_path.rstrip('/') }}"
-        iw_mail_path_n: "{{ iw_mail_path.rstrip('/') if (iw_mail_path | length > 0) else iw_source_mailbox_path.rstrip('/') | dirname }}"
+        iw_mail_path_n: "{{ iw_mail_path.rstrip('/') }}"
+        iw_archive_root_n: "{{ iw_archive_root.rstrip('/') }}"
         iw_restart_needed: "{{ iw_restart_needed | default(false) | bool }}"
-
-    - name: Ensure destination domain and directories
-      ansible.builtin.include_tasks: ensure_dest_domain.yml
 
     - name: Resolve the account list
       ansible.builtin.include_tasks: resolve_account_list.yml
@@ -63,13 +60,19 @@
       ansible.builtin.assert:
         that:
           - iw_users_resolved | length > 0
-        fail_msg: "No accounts to migrate. Set iw_users / iw_user or export from the source domain."
+        fail_msg: "No accounts to migrate. Set iw_users / iw_user with emails, or export from the source domain."
         quiet: true
+
+    - name: Collect unique source and dest domains
+      ansible.builtin.include_tasks: collect_move_domains.yml
 
     - name: Log resolved account list
       ansible.builtin.include_tasks: log.yml
       vars:
         iw_log_message: "ACCOUNTS {{ iw_users_resolved | length }} {{ iw_users_resolved | join(' ') }}"
+
+    - name: Ensure destination domains and directories
+      ansible.builtin.include_tasks: ensure_dest_domain.yml
 
     - name: Disable all selected accounts
       when: not ansible_check_mode

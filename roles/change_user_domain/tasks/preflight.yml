@@ -16,17 +16,21 @@
     iw_source_local_part: "{{ iw_source_email.split('@')[0] }}"
     iw_dest_username: "{{ iw_dest_email.split('@')[0] }}"
     iw_custom_target: "{{ iw_source_email.split('@')[0] | lower != iw_dest_email.split('@')[0] | lower }}"
+    iw_acct_source_domain: "{{ (iw_source_email.split('@')[1] | default('') | lower) if ('@' in iw_source_email) else '' }}"
+    iw_acct_dest_domain: "{{ (iw_dest_email.split('@')[1] | default('') | lower) if ('@' in iw_dest_email) else '' }}"
 
-- name: Assert emails belong to the configured domains
+- name: Assert account domains are set and differ
   ansible.builtin.assert:
     that:
       - iw_source_email.split('@') | length == 2
       - iw_dest_email.split('@') | length == 2
-      - iw_source_email.split('@')[1] | lower == iw_source_domain | lower
-      - iw_dest_email.split('@')[1] | lower == iw_dest_domain | lower
+      - iw_acct_source_domain | length > 0
+      - iw_acct_dest_domain | length > 0
+      - iw_acct_source_domain != iw_acct_dest_domain
     fail_msg: >-
-      Account '{{ iw_user_item }}' must map '{{ iw_source_domain }}' to
-      '{{ iw_dest_domain }}' (got '{{ iw_source_email }}' -> '{{ iw_dest_email }}').
+      Account '{{ iw_user_item }}' needs distinct source and dest domains
+      (got '{{ iw_source_email }}' -> '{{ iw_dest_email }}').
+      Full emails set the domain; local-parts need inventory iw_source_domain / iw_dest_domain.
     quiet: true
 
 - name: Verify source account exists
@@ -117,25 +121,34 @@
 - name: Set filesystem and SQL path facts
   ansible.builtin.set_fact:
     iw_source_username: "{{ iw_alias_db.split(';')[0] | trim }}"
-    iw_src_maildir: "{{ iw_source_mailbox_path_n }}/{{ iw_alias_db.split(';')[0] | trim }}"
-    iw_dst_maildir: "{{ iw_dest_mailbox_path_n }}/{{ iw_dest_username }}"
-    iw_src_archive: "{{ iw_source_archive_path_n }}/{{ iw_alias_db.split(';')[0] | trim }}"
-    iw_dst_archive: "{{ iw_dest_archive_path_n }}/{{ iw_dest_username }}"
-    iw_src_config: "{{ iw_config_path_n }}/{{ iw_source_domain }}/{{ iw_alias_db.split(';')[0] | trim }}.txt"
-    iw_dst_config: "{{ iw_config_path_n }}/{{ iw_dest_domain }}/{{ iw_dest_username }}.txt"
-    iw_dircache_old_prefix: "{{ iw_source_domain }}/{{ iw_alias_db.split(';')[0] | trim }}"
-    iw_dircache_new_prefix: "{{ iw_dest_domain }}/{{ iw_dest_username }}"
-    iw_source_domain_sql: "{{ iw_source_domain | replace(\"'\", \"''\") }}"
-    iw_dest_domain_sql: "{{ iw_dest_domain | replace(\"'\", \"''\") }}"
+    iw_acct_src_mailbox_root: "{{ _src_mb }}"
+    iw_acct_dst_mailbox_root: "{{ _dst_mb }}"
+    iw_acct_src_archive_root: "{{ _src_ar }}"
+    iw_acct_dst_archive_root: "{{ _dst_ar }}"
+    iw_src_maildir: "{{ _src_mb }}/{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_dst_maildir: "{{ _dst_mb }}/{{ iw_dest_username }}"
+    iw_src_archive: "{{ _src_ar }}/{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_dst_archive: "{{ _dst_ar }}/{{ iw_dest_username }}"
+    iw_src_config: "{{ iw_config_path_n }}/{{ iw_acct_source_domain }}/{{ iw_alias_db.split(';')[0] | trim }}.txt"
+    iw_dst_config: "{{ iw_config_path_n }}/{{ iw_acct_dest_domain }}/{{ iw_dest_username }}.txt"
+    iw_dircache_old_prefix: "{{ iw_acct_source_domain }}/{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_dircache_new_prefix: "{{ iw_acct_dest_domain }}/{{ iw_dest_username }}"
+    iw_source_domain_sql: "{{ iw_acct_source_domain | replace(\"'\", \"''\") }}"
+    iw_dest_domain_sql: "{{ iw_acct_dest_domain | replace(\"'\", \"''\") }}"
     iw_alias_db_sql: "{{ iw_alias_db | replace(\"'\", \"''\") }}"
     iw_source_username_sql: "{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
     iw_dest_username_sql: "{{ iw_dest_username | replace(\"'\", \"''\") }}"
     iw_source_email_sql: "{{ iw_source_email | replace(\"'\", \"''\") }}"
     iw_dest_email_sql: "{{ iw_dest_email | replace(\"'\", \"''\") }}"
-    iw_src_maildir_sql: "{{ iw_source_mailbox_path_n }}/{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
-    iw_dst_maildir_sql: "{{ iw_dest_mailbox_path_n }}/{{ iw_dest_username | replace(\"'\", \"''\") }}"
-    iw_dircache_old_prefix_sql: "{{ iw_source_domain | replace(\"'\", \"''\") }}/{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
-    iw_dircache_new_prefix_sql: "{{ iw_dest_domain | replace(\"'\", \"''\") }}/{{ iw_dest_username | replace(\"'\", \"''\") }}"
+    iw_src_maildir_sql: "{{ _src_mb }}/{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
+    iw_dst_maildir_sql: "{{ _dst_mb }}/{{ iw_dest_username | replace(\"'\", \"''\") }}"
+    iw_dircache_old_prefix_sql: "{{ iw_acct_source_domain | replace(\"'\", \"''\") }}/{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
+    iw_dircache_new_prefix_sql: "{{ iw_acct_dest_domain | replace(\"'\", \"''\") }}/{{ iw_dest_username | replace(\"'\", \"''\") }}"
+  vars:
+    _src_mb: "{{ iw_source_mailbox_path_n if ((iw_source_mailbox_path_n | length > 0) and (iw_acct_source_domain == (iw_source_domain | default('') | lower))) else (iw_mail_path_n ~ '/' ~ iw_acct_source_domain) }}"
+    _dst_mb: "{{ iw_dest_mailbox_path_n if ((iw_dest_mailbox_path_n | length > 0) and (iw_acct_dest_domain == (iw_dest_domain | default('') | lower))) else (iw_mail_path_n ~ '/' ~ iw_acct_dest_domain) }}"
+    _src_ar: "{{ iw_source_archive_path_n if ((iw_source_archive_path_n | length > 0) and (iw_acct_source_domain == (iw_source_domain | default('') | lower))) else (iw_archive_root_n ~ '/' ~ iw_acct_source_domain) }}"
+    _dst_ar: "{{ iw_dest_archive_path_n if ((iw_dest_archive_path_n | length > 0) and (iw_acct_dest_domain == (iw_dest_domain | default('') | lower))) else (iw_archive_root_n ~ '/' ~ iw_acct_dest_domain) }}"
 
 - name: Assert custom archive path is empty or matches the source archive
   ansible.builtin.assert:
@@ -161,7 +174,7 @@
 
 - name: Stat destination mailbox parent
   ansible.builtin.stat:
-    path: "{{ iw_dest_mailbox_path_n }}"
+    path: "{{ iw_acct_dst_mailbox_root }}"
   register: iw_dst_mailbox_parent_stat
   check_mode: false
 
@@ -199,7 +212,7 @@
       Filesystem preflight failed for '{{ iw_source_email }}'.
       Destination maildir '{{ iw_dst_maildir }}' must not exist; destination
       config '{{ iw_dst_config }}' must not exist; destination mailbox parent
-      '{{ iw_dest_mailbox_path_n }}' must exist (created with the dest domain).
+      '{{ iw_acct_dst_mailbox_root }}' must exist (created with the dest domain).
     quiet: true
 
 - name: Record whether source maildir, archive, and config exist
