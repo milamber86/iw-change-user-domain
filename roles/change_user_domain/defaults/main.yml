@@ -2,11 +2,14 @@
 iw_tool_sh: /opt/icewarp/tool.sh
 iw_icewarpd: /opt/icewarp/icewarpd.sh
 iw_enable_login_after: true
+iw_owner: icewarp
+iw_group: icewarp
 
 # Extra-var override for a single account. When non-empty, replaces iw_users.
 iw_user: ""
+# Optional dest email for a one-shot alias rename (used with iw_user).
+iw_dest_email: ""
 
-# Required inventory/group_vars (empty so missing values fail asserts).
 iw_source_domain: ""
 iw_dest_domain: ""
 iw_source_mailbox_path: ""
@@ -17,4 +20,8 @@ iw_accounts_db: ""
 iw_groupware_db: ""
 iw_directorycache_db: ""
 iw_webclient_db: ""
+iw_eas_db: ""
+iw_config_path: ""
+iw_mail_path: ""
+iw_archive_root: ""
 iw_users: []

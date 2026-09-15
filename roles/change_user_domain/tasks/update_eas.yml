@@ -1,0 +1,8 @@
+---
+- name: Update ActiveSync devices.user_id
+  ansible.builtin.shell:
+    cmd: >
+      mysql --batch -N {{ iw_eas_db | quote }} -e
+      "UPDATE devices
+      SET user_id = '{{ iw_dest_email_sql }}'
+      WHERE user_id = '{{ iw_source_email_sql }}';"

@@ -1,14 +1,16 @@
 ---
-- name: Ensure destination archive parent exists
-  ansible.builtin.file:
-    path: "{{ iw_dest_archive_path_n }}"
-    state: directory
-  when: iw_archive_present | bool
-
 - name: Move archive to the destination domain path
+  when: iw_archive_present | bool
   ansible.builtin.command:
     argv:
       - mv
       - "{{ iw_src_archive }}"
       - "{{ iw_dst_archive }}"
+
+- name: Set archive ownership
   when: iw_archive_present | bool
+  ansible.builtin.file:
+    path: "{{ iw_dst_archive }}"
+    owner: "{{ iw_owner }}"
+    group: "{{ iw_group }}"
+    recurse: true

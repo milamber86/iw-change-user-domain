@@ -1,15 +1,32 @@
 ---
+- name: Parse source and destination email addresses
+  ansible.builtin.set_fact:
+    iw_source_spec: "{{ (iw_user_item | string).split(',')[0] | trim }}"
+    iw_dest_spec: "{{ ((iw_user_item | string).split(',')[1] | trim) if ((iw_user_item | string).split(',') | length > 1) else '' }}"
+
 - name: Resolve local-part and email addresses
   ansible.builtin.set_fact:
-    iw_local_part: "{{ iw_user_item.split('@')[0] }}"
-    iw_source_email: "{{ iw_user_item if '@' in (iw_user_item | string) else (iw_user_item ~ '@' ~ iw_source_domain) }}"
-    iw_dest_email: "{{ iw_user_item.split('@')[0] ~ '@' ~ iw_dest_domain }}"
+    iw_source_email: "{{ iw_source_spec if '@' in iw_source_spec else (iw_source_spec ~ '@' ~ iw_source_domain) }}"
+    iw_dest_email: "{{ iw_dest_email_raw if (iw_dest_spec | length > 0) else (iw_source_spec.split('@')[0] ~ '@' ~ iw_dest_domain) }}"
+  vars:
+    iw_dest_email_raw: "{{ iw_dest_spec if '@' in iw_dest_spec else (iw_dest_spec ~ '@' ~ iw_dest_domain) }}"
 
-- name: Assert source email belongs to the source domain
+- name: Set destination username and alias-rename flag
+  ansible.builtin.set_fact:
+    iw_source_local_part: "{{ iw_source_email.split('@')[0] }}"
+    iw_dest_username: "{{ iw_dest_email.split('@')[0] }}"
+    iw_custom_target: "{{ iw_source_email.split('@')[0] | lower != iw_dest_email.split('@')[0] | lower }}"
+
+- name: Assert emails belong to the configured domains
   ansible.builtin.assert:
     that:
-      - ('@' not in (iw_user_item | string)) or (iw_user_item.split('@')[1] | lower == iw_source_domain | lower)
-    fail_msg: "Account '{{ iw_user_item }}' is not in source domain '{{ iw_source_domain }}'."
+      - iw_source_email.split('@') | length == 2
+      - iw_dest_email.split('@') | length == 2
+      - iw_source_email.split('@')[1] | lower == iw_source_domain | lower
+      - iw_dest_email.split('@')[1] | lower == iw_dest_domain | lower
+    fail_msg: >-
+      Account '{{ iw_user_item }}' must map '{{ iw_source_domain }}' to
+      '{{ iw_dest_domain }}' (got '{{ iw_source_email }}' -> '{{ iw_dest_email }}').
     quiet: true
 
 - name: Verify source account exists
@@ -26,20 +43,6 @@
     iw_src_acct_export.rc != 0
     or ('not found' in ((iw_src_acct_export.stdout ~ iw_src_acct_export.stderr) | lower))
 
-- name: Verify destination domain exists
-  ansible.builtin.command:
-    argv:
-      - "{{ iw_tool_sh }}"
-      - export
-      - domain
-      - "{{ iw_dest_domain }}"
-  register: iw_dst_domain_export
-  changed_when: false
-  check_mode: false
-  failed_when: >-
-    iw_dst_domain_export.rc != 0
-    or ('not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower))
-
 - name: Verify destination account does not exist
   ansible.builtin.command:
     argv:
@@ -53,20 +56,35 @@
   failed_when: >-
     'not found' not in ((iw_dst_acct_export.stdout ~ iw_dst_acct_export.stderr) | lower)
 
-- name: Export source u_mailbox
+- name: Export source u_alias
   ansible.builtin.command:
     argv:
       - "{{ iw_tool_sh }}"
       - export
       - account
       - "{{ iw_source_email }}"
-      - u_mailbox
-  register: iw_mailbox_export
+      - u_alias
+  register: iw_alias_export
   changed_when: false
   check_mode: false
   failed_when: >-
-    iw_mailbox_export.rc != 0
-    or ('not found' in ((iw_mailbox_export.stdout ~ iw_mailbox_export.stderr) | lower))
+    iw_alias_export.rc != 0
+    or ('not found' in ((iw_alias_export.stdout ~ iw_alias_export.stderr) | lower))
+
+- name: Export source u_type
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - export
+      - account
+      - "{{ iw_source_email }}"
+      - u_type
+  register: iw_type_export
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    iw_type_export.rc != 0
+    or ('not found' in ((iw_type_export.stdout ~ iw_type_export.stderr) | lower))
 
 - name: Export source u_autoarchivepath
   ansible.builtin.command:
@@ -83,43 +101,49 @@
     iw_archivepath_export.rc != 0
     or ('not found' in ((iw_archivepath_export.stdout ~ iw_archivepath_export.stderr) | lower))
 
-- name: Set mailbox, archive, and SQL-escaped facts
+- name: Set alias, type, and username facts
   ansible.builtin.set_fact:
-    iw_mailbox: "{{ (iw_mailbox_export.stdout.split(',')[1] | default('') | trim) if (iw_mailbox_export.stdout.split(',') | length > 1) else '' }}"
+    iw_alias_db: "{{ (iw_alias_export.stdout.split(',')[1] | default('') | trim) if (iw_alias_export.stdout.split(',') | length > 1) else '' }}"
+    iw_account_type: "{{ (iw_type_export.stdout.split(',')[1] | default('0') | trim) if (iw_type_export.stdout.split(',') | length > 1) else '0' }}"
     iw_custom_archive: "{{ (iw_archivepath_export.stdout.split(',')[1] | default('') | trim) if (iw_archivepath_export.stdout.split(',') | length > 1) else '' }}"
 
-- name: Assert u_mailbox is set
+- name: Assert u_alias is set
   ansible.builtin.assert:
     that:
-      - iw_mailbox | length > 0
-    fail_msg: "Could not resolve u_mailbox for '{{ iw_source_email }}' from tool.sh."
+      - iw_alias_db | length > 0
+    fail_msg: "Could not resolve u_alias for '{{ iw_source_email }}' from tool.sh."
     quiet: true
 
 - name: Set filesystem and SQL path facts
   ansible.builtin.set_fact:
-    iw_src_maildir: "{{ iw_source_mailbox_path_n }}/{{ iw_mailbox }}"
-    iw_dst_maildir: "{{ iw_dest_mailbox_path_n }}/{{ iw_mailbox }}"
-    iw_src_archive: "{{ iw_source_archive_path_n }}/{{ iw_mailbox }}"
-    iw_dst_archive: "{{ iw_dest_archive_path_n }}/{{ iw_mailbox }}"
-    iw_dircache_old_prefix: "{{ iw_source_domain }}/{{ iw_mailbox }}"
-    iw_dircache_new_prefix: "{{ iw_dest_domain }}/{{ iw_mailbox }}"
+    iw_source_username: "{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_src_maildir: "{{ iw_source_mailbox_path_n }}/{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_dst_maildir: "{{ iw_dest_mailbox_path_n }}/{{ iw_dest_username }}"
+    iw_src_archive: "{{ iw_source_archive_path_n }}/{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_dst_archive: "{{ iw_dest_archive_path_n }}/{{ iw_dest_username }}"
+    iw_src_config: "{{ iw_config_path_n }}/{{ iw_source_domain }}/{{ iw_alias_db.split(';')[0] | trim }}.txt"
+    iw_dst_config: "{{ iw_config_path_n }}/{{ iw_dest_domain }}/{{ iw_dest_username }}.txt"
+    iw_dircache_old_prefix: "{{ iw_source_domain }}/{{ iw_alias_db.split(';')[0] | trim }}"
+    iw_dircache_new_prefix: "{{ iw_dest_domain }}/{{ iw_dest_username }}"
     iw_source_domain_sql: "{{ iw_source_domain | replace(\"'\", \"''\") }}"
     iw_dest_domain_sql: "{{ iw_dest_domain | replace(\"'\", \"''\") }}"
-    iw_mailbox_sql: "{{ iw_mailbox | replace(\"'\", \"''\") }}"
+    iw_alias_db_sql: "{{ iw_alias_db | replace(\"'\", \"''\") }}"
+    iw_source_username_sql: "{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
+    iw_dest_username_sql: "{{ iw_dest_username | replace(\"'\", \"''\") }}"
     iw_source_email_sql: "{{ iw_source_email | replace(\"'\", \"''\") }}"
     iw_dest_email_sql: "{{ iw_dest_email | replace(\"'\", \"''\") }}"
-    iw_src_maildir_sql: "{{ iw_source_mailbox_path_n }}/{{ iw_mailbox | replace(\"'\", \"''\") }}"
-    iw_dst_maildir_sql: "{{ iw_dest_mailbox_path_n }}/{{ iw_mailbox | replace(\"'\", \"''\") }}"
-    iw_dircache_old_prefix_sql: "{{ iw_source_domain | replace(\"'\", \"''\") }}/{{ iw_mailbox | replace(\"'\", \"''\") }}"
-    iw_dircache_new_prefix_sql: "{{ iw_dest_domain | replace(\"'\", \"''\") }}/{{ iw_mailbox | replace(\"'\", \"''\") }}"
+    iw_src_maildir_sql: "{{ iw_source_mailbox_path_n }}/{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
+    iw_dst_maildir_sql: "{{ iw_dest_mailbox_path_n }}/{{ iw_dest_username | replace(\"'\", \"''\") }}"
+    iw_dircache_old_prefix_sql: "{{ iw_source_domain | replace(\"'\", \"''\") }}/{{ (iw_alias_db.split(';')[0] | trim) | replace(\"'\", \"''\") }}"
+    iw_dircache_new_prefix_sql: "{{ iw_dest_domain | replace(\"'\", \"''\") }}/{{ iw_dest_username | replace(\"'\", \"''\") }}"
 
-- name: Assert custom archive path is empty or matches inventory
+- name: Assert custom archive path is empty or matches the source archive
   ansible.builtin.assert:
     that:
       - (iw_custom_archive | length == 0) or (iw_custom_archive.rstrip('/') == iw_src_archive)
     fail_msg: >-
       Custom u_autoarchivepath '{{ iw_custom_archive }}' for '{{ iw_source_email }}'
-      does not match inventory source archive '{{ iw_src_archive }}'. Custom archive
+      does not match source archive '{{ iw_src_archive }}'. Custom archive
       paths are not supported.
     quiet: true
 
@@ -153,23 +177,33 @@
   register: iw_dst_archive_stat
   check_mode: false
 
-- name: Assert maildir and archive filesystem preconditions
+- name: Stat source config file
+  ansible.builtin.stat:
+    path: "{{ iw_src_config }}"
+  register: iw_src_config_stat
+  check_mode: false
+
+- name: Stat destination config file
+  ansible.builtin.stat:
+    path: "{{ iw_dst_config }}"
+  register: iw_dst_config_stat
+  check_mode: false
+
+- name: Assert destination paths do not already exist
   ansible.builtin.assert:
     that:
-      - iw_src_maildir_stat.stat.exists | default(false)
-      - iw_src_maildir_stat.stat.isdir | default(false)
       - not (iw_dst_maildir_stat.stat.exists | default(false))
-      - iw_dst_mailbox_parent_stat.stat.exists | default(false)
-      - iw_dst_mailbox_parent_stat.stat.isdir | default(false)
-      - not (iw_dst_archive_stat.stat.exists | default(false))
+      - not (iw_dst_config_stat.stat.exists | default(false))
+      - ansible_check_mode or ((iw_dst_mailbox_parent_stat.stat.exists | default(false)) and (iw_dst_mailbox_parent_stat.stat.isdir | default(false)))
     fail_msg: >-
       Filesystem preflight failed for '{{ iw_source_email }}'.
-      Source maildir '{{ iw_src_maildir }}' must exist; destination maildir
-      '{{ iw_dst_maildir }}' must not; destination mailbox parent
-      '{{ iw_dest_mailbox_path_n }}' must exist; destination archive
-      '{{ iw_dst_archive }}' must not exist.
+      Destination maildir '{{ iw_dst_maildir }}' must not exist; destination
+      config '{{ iw_dst_config }}' must not exist; destination mailbox parent
+      '{{ iw_dest_mailbox_path_n }}' must exist (created with the dest domain).
     quiet: true
 
-- name: Record whether a source archive directory exists
+- name: Record whether source maildir, archive, and config exist
   ansible.builtin.set_fact:
-    iw_archive_present: "{{ (iw_src_archive_stat.stat.exists | default(false)) and (iw_src_archive_stat.stat.isdir | default(false)) }}"
+    iw_maildir_present: "{{ (iw_src_maildir_stat.stat.exists | default(false)) and (iw_src_maildir_stat.stat.isdir | default(false)) }}"
+    iw_archive_present: "{{ (iw_src_archive_stat.stat.exists | default(false)) and (iw_src_archive_stat.stat.isdir | default(false)) and (not (iw_dst_archive_stat.stat.exists | default(false))) }}"
+    iw_config_present: "{{ iw_src_config_stat.stat.exists | default(false) }}"

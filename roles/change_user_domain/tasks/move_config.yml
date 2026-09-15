@@ -1,0 +1,15 @@
+---
+- name: Move config file to the destination domain path
+  when: iw_config_present | bool
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ iw_src_config }}"
+      - "{{ iw_dst_config }}"
+
+- name: Set config file ownership
+  when: iw_config_present | bool
+  ansible.builtin.file:
+    path: "{{ iw_dst_config }}"
+    owner: "{{ iw_owner }}"
+    group: "{{ iw_group }}"

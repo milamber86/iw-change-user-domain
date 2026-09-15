@@ -1,36 +1,74 @@
 ---
-- name: Assert required variables are set
+- name: Assert source and destination domains are set
   ansible.builtin.assert:
     that:
       - iw_source_domain | length > 0
       - iw_dest_domain | length > 0
       - iw_source_domain != iw_dest_domain
+    fail_msg: "iw_source_domain and iw_dest_domain are required and must differ."
+    quiet: true
+
+- name: Discover IceWarp databases and paths
+  ansible.builtin.include_tasks: discover.yml
+
+- name: Assert discovered databases and paths are set
+  ansible.builtin.assert:
+    that:
+      - iw_accounts_db | length > 0
+      - iw_groupware_db | length > 0
+      - iw_directorycache_db | length > 0
+      - iw_eas_db | length > 0
+      - iw_webclient_db | length > 0
+      - iw_mail_path | length > 0 or iw_source_mailbox_path | length > 0
       - iw_source_mailbox_path | length > 0
       - iw_dest_mailbox_path | length > 0
       - iw_source_archive_path | length > 0
       - iw_dest_archive_path | length > 0
-      - iw_accounts_db | length > 0
-      - iw_groupware_db | length > 0
-      - iw_directorycache_db | length > 0
-      - iw_webclient_db | length > 0
-      - (iw_user | default('') | string | length > 0) or (iw_users | default([]) | length > 0)
+      - iw_config_path | length > 0
     fail_msg: >-
-      Required inventory/extra vars are missing or source and destination
-      domains are the same. See inventory/group_vars/all.example.yml.
+      Could not discover IceWarp database names or paths. Set them in inventory
+      or extra-vars. See inventory/group_vars/all.example.yml.
     quiet: true
 
-- name: Normalize paths and resolve the user list
+- name: Normalize paths
   ansible.builtin.set_fact:
     iw_source_mailbox_path_n: "{{ iw_source_mailbox_path.rstrip('/') }}"
     iw_dest_mailbox_path_n: "{{ iw_dest_mailbox_path.rstrip('/') }}"
     iw_source_archive_path_n: "{{ iw_source_archive_path.rstrip('/') }}"
     iw_dest_archive_path_n: "{{ iw_dest_archive_path.rstrip('/') }}"
-    iw_users_resolved: "{{ [iw_user] if (iw_user | default('') | string | length > 0) else ([iw_users] if iw_users is string else (iw_users | default([]))) }}"
+    iw_config_path_n: "{{ iw_config_path.rstrip('/') }}"
+    iw_mail_path_n: "{{ iw_mail_path.rstrip('/') if (iw_mail_path | length > 0) else iw_source_mailbox_path.rstrip('/') | dirname }}"
     iw_restart_needed: "{{ iw_restart_needed | default(false) | bool }}"
 
-- name: Change user domains
+- name: Ensure destination domain and directories
+  ansible.builtin.include_tasks: ensure_dest_domain.yml
+
+- name: Resolve the account list
+  ansible.builtin.include_tasks: resolve_account_list.yml
+
+- name: Assert at least one account will be migrated
+  ansible.builtin.assert:
+    that:
+      - iw_users_resolved | length > 0
+    fail_msg: "No accounts to migrate. Set iw_users / iw_user or export from the source domain."
+    quiet: true
+
+- name: Change account domains
   block:
-    - name: Process each user
+    - name: Disable all selected accounts
+      when: not ansible_check_mode
+      ansible.builtin.include_tasks: disable_all.yml
+
+    - name: Restart IceWarp after disabling accounts
+      when: not ansible_check_mode
+      ansible.builtin.command:
+        argv:
+          - "{{ iw_icewarpd }}"
+          - --restart
+          - all
+      timeout: 600
+
+    - name: Process each account
       ansible.builtin.include_tasks: process_user.yml
       loop: "{{ iw_users_resolved }}"
       loop_control:

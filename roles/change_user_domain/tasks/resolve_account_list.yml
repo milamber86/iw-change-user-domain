@@ -1,0 +1,26 @@
+---
+- name: Export all source-domain accounts
+  when:
+    - iw_user | default('') | string | length == 0
+    - iw_users | default([]) | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - export
+      - account
+      - "*@{{ iw_source_domain }}"
+  register: iw_domain_acct_export
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    iw_domain_acct_export.rc != 0
+    or ('not found' in ((iw_domain_acct_export.stdout ~ iw_domain_acct_export.stderr) | lower))
+
+- name: Resolve the account list
+  ansible.builtin.set_fact:
+    iw_users_resolved: "{{ iw_users_from_user if (iw_user | default('') | string | length > 0) else (iw_users_from_list if (iw_users | default([]) | length > 0) else iw_users_from_export) }}"
+  vars:
+    iw_user_as_item: "{{ iw_user if (iw_dest_email | default('') | string | length == 0 or ',' in (iw_user | string)) else (iw_user.split(',')[0] ~ ',' ~ iw_dest_email) }}"
+    iw_users_from_user: "{{ [iw_user_as_item] }}"
+    iw_users_from_list: "{{ [iw_users] if iw_users is string else (iw_users | default([])) }}"
+    iw_users_from_export: "{{ ((iw_domain_acct_export.stdout_lines | default([])) if (iw_domain_acct_export is defined) else []) | map('trim') | select() | reject('match', '^##internalservicedomain') | map('regex_replace', ',.*$', '') | select() | list }}"

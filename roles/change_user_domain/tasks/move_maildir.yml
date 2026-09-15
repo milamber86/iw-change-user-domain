@@ -1,7 +1,16 @@
 ---
 - name: Move maildir to the destination domain path
+  when: iw_maildir_present | bool
   ansible.builtin.command:
     argv:
       - mv
       - "{{ iw_src_maildir }}"
       - "{{ iw_dst_maildir }}"
+
+- name: Set maildir ownership
+  when: iw_maildir_present | bool
+  ansible.builtin.file:
+    path: "{{ iw_dst_maildir }}"
+    owner: "{{ iw_owner }}"
+    group: "{{ iw_group }}"
+    recurse: true

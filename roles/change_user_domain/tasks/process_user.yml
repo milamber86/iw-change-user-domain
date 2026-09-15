@@ -5,13 +5,13 @@
 - name: Mutate account on the IceWarp host
   when: not ansible_check_mode
   block:
-    - name: Disable account login
-      ansible.builtin.include_tasks: disable_login.yml
-
-    - name: Move user maildir
+    - name: Move account maildir
       ansible.builtin.include_tasks: move_maildir.yml
 
-    - name: Move user archive
+    - name: Move account config file
+      ansible.builtin.include_tasks: move_config.yml
+
+    - name: Move account archive
       ansible.builtin.include_tasks: move_archive.yml
 
     - name: Update accounts database
@@ -19,6 +19,9 @@
 
     - name: Update groupware database
       ansible.builtin.include_tasks: update_groupware.yml
+
+    - name: Update ActiveSync database
+      ansible.builtin.include_tasks: update_eas.yml
 
     - name: Update directory cache database
       ansible.builtin.include_tasks: update_directorycache.yml

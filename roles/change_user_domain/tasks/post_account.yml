@@ -1,5 +1,10 @@
 ---
+- name: Reset mailboxpath fact
+  ansible.builtin.set_fact:
+    iw_new_mailboxpath: ""
+
 - name: Export destination u_mailboxpath
+  when: iw_account_type | int != 2
   ansible.builtin.command:
     argv:
       - "{{ iw_tool_sh }}"
@@ -14,11 +19,17 @@
     or ('not found' in ((iw_mailboxpath_export.stdout ~ iw_mailboxpath_export.stderr) | lower))
 
 - name: Set rewritten u_mailboxpath
+  when: iw_account_type | int != 2
   ansible.builtin.set_fact:
-    iw_new_mailboxpath: "{{ (iw_mailboxpath_export.stdout.split(',')[1] | default('') | trim | regex_replace(iw_source_domain | regex_escape, iw_dest_domain)) if (iw_mailboxpath_export.stdout.split(',') | length > 1) else '' }}"
+    iw_new_mailboxpath: "{{ iw_mailboxpath_custom if (iw_custom_target | bool and (iw_mailboxpath_rewritten | length > 0)) else iw_mailboxpath_rewritten }}"
+  vars:
+    iw_mailboxpath_rewritten: "{{ (iw_mailboxpath_export.stdout.split(',')[1] | default('') | trim | regex_replace(iw_source_domain | regex_escape, iw_dest_domain)) if (iw_mailboxpath_export.stdout.split(',') | length > 1) else '' }}"
+    iw_mailboxpath_custom: "{{ iw_dest_domain }}/{{ iw_dest_username }}/"
 
 - name: Set destination u_mailboxpath
-  when: iw_new_mailboxpath | length > 0
+  when:
+    - iw_account_type | int != 2
+    - iw_new_mailboxpath | default('') | length > 0
   ansible.builtin.command:
     argv:
       - "{{ iw_tool_sh }}"
@@ -33,12 +44,12 @@
     path: "{{ iw_dst_maildir }}/~webmail/settings.xml"
   register: iw_settings_xml_stat
 
-- name: Rewrite domain in webmail settings.xml
+- name: Rewrite address in webmail settings.xml
   when: iw_settings_xml_stat.stat.exists | default(false)
   ansible.builtin.replace:
     path: "{{ iw_dst_maildir }}/~webmail/settings.xml"
-    regexp: "{{ iw_source_domain | regex_escape }}"
-    replace: "{{ iw_dest_domain }}"
+    regexp: "{{ (iw_source_email if (iw_custom_target | bool) else iw_source_domain) | regex_escape }}"
+    replace: "{{ iw_dest_email if (iw_custom_target | bool) else iw_dest_domain }}"
 
 - name: Refresh destination directory cache
   ansible.builtin.command:
@@ -48,6 +59,16 @@
       - account
       - "{{ iw_dest_email }}"
       - u_directorycache_refreshnow
+      - "1"
+
+- name: Queue full-text reindex
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - set
+      - account
+      - "{{ iw_dest_email }}"
+      - U_Fulltext_ReindexAccount
       - "1"
 
 - name: Re-enable destination account login

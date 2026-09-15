@@ -1,0 +1,57 @@
+---
+- name: Stat source mailbox and config paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ iw_source_mailbox_path_n }}"
+    - "{{ iw_config_path_n }}"
+  loop_control:
+    label: "{{ item }}"
+  register: iw_src_root_stats
+  check_mode: false
+
+- name: Assert source mailbox and config paths exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists | default(false)
+      - item.stat.isdir | default(false)
+    fail_msg: "Required path '{{ item.item }}' does not exist on the IceWarp host."
+    quiet: true
+  loop: "{{ iw_src_root_stats.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Check whether the destination domain exists
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - export
+      - domain
+      - "{{ iw_dest_domain }}"
+  register: iw_dst_domain_export
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Create destination domain
+  when:
+    - not ansible_check_mode
+    - "'not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower)"
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - create
+      - domain
+      - "{{ iw_dest_domain }}"
+
+- name: Ensure destination mailbox, archive, and config directories exist
+  when: not ansible_check_mode
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ iw_owner }}"
+    group: "{{ iw_group }}"
+  loop:
+    - "{{ iw_dest_mailbox_path_n }}"
+    - "{{ iw_dest_archive_path_n }}"
+    - "{{ iw_config_path_n }}/{{ iw_dest_domain }}"

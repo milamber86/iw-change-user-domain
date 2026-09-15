@@ -1,0 +1,21 @@
+---
+- name: Disable login on all selected accounts
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - set
+      - account
+      - "{{ iw_disable_email }}"
+      - u_accountdisabled
+      - "2"
+  loop: "{{ iw_users_resolved }}"
+  loop_control:
+    loop_var: iw_disable_item
+    label: "{{ iw_disable_email }}"
+  vars:
+    iw_disable_src: "{{ (iw_disable_item | string).split(',')[0] | trim }}"
+    iw_disable_email: "{{ iw_disable_src if '@' in iw_disable_src else (iw_disable_src ~ '@' ~ iw_source_domain) }}"
+
+- name: Mark IceWarp restart as required
+  ansible.builtin.set_fact:
+    iw_restart_needed: true

@@ -39,10 +39,38 @@
       COMMIT;
       "
 
-- name: Update TeamChat folderrights emails
+- name: Update remaining groupware email columns
   ansible.builtin.shell:
-    cmd: >
-      mysql --batch -N {{ iw_groupware_db | quote }} -e
-      "UPDATE folderrights
-      SET FrtEmail = '{{ iw_dest_email_sql }}'
-      WHERE FrtEmail = '{{ iw_source_email_sql }}';"
+    cmd: |
+      mysql --batch -N {{ iw_groupware_db | quote }} -e "
+      UPDATE folderrights
+        SET FrtEmail = '{{ iw_dest_email_sql }}'
+        WHERE FrtEmail = '{{ iw_source_email_sql }}';
+      UPDATE eventcontact
+        SET CntEmail = '{{ iw_dest_email_sql }}'
+        WHERE CntEmail = '{{ iw_source_email_sql }}';
+      UPDATE contactlocation
+        SET LctEmail1 = '{{ iw_dest_email_sql }}'
+        WHERE LctEmail1 = '{{ iw_source_email_sql }}';
+      UPDATE contactlocation
+        SET LctEmail2 = '{{ iw_dest_email_sql }}'
+        WHERE LctEmail2 = '{{ iw_source_email_sql }}';
+      UPDATE contactlocation
+        SET LctEmail3 = '{{ iw_dest_email_sql }}'
+        WHERE LctEmail3 = '{{ iw_source_email_sql }}';
+      UPDATE eventpin
+        SET PinOwnEmail = '{{ iw_dest_email_sql }}'
+        WHERE PinOwnEmail = '{{ iw_source_email_sql }}';
+      UPDATE globaleventpin
+        SET PinOwnEmail = '{{ iw_dest_email_sql }}'
+        WHERE PinOwnEmail = '{{ iw_source_email_sql }}';
+      UPDATE eventmyreaction
+        SET ReaOwnEmail = '{{ iw_dest_email_sql }}'
+        WHERE ReaOwnEmail = '{{ iw_source_email_sql }}';
+      UPDATE eventmymention
+        SET MenWhoOwnEmail = '{{ iw_dest_email_sql }}'
+        WHERE MenWhoOwnEmail = '{{ iw_source_email_sql }}';
+      UPDATE eventmymention
+        SET MenLinkEmail = '{{ iw_dest_email_sql }}'
+        WHERE MenLinkEmail = '{{ iw_source_email_sql }}';
+      "

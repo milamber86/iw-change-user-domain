@@ -1,0 +1,160 @@
+---
+- name: Discover accounts database name
+  when: iw_accounts_db | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - C_System_Storage_Accounts_ODBCConnString
+  register: iw_disc_acc
+  changed_when: false
+  check_mode: false
+
+- name: Set accounts database name
+  when: iw_accounts_db | length == 0
+  ansible.builtin.set_fact:
+    iw_accounts_db: "{{ (iw_disc_acc.stdout.split(':', 1)[1] | default('') | trim).split(';')[0] | trim }}"
+
+- name: Discover groupware database name
+  when: iw_groupware_db | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - C_GW_ConnectionString
+  register: iw_disc_gw
+  changed_when: false
+  check_mode: false
+
+- name: Set groupware database name
+  when: iw_groupware_db | length == 0
+  ansible.builtin.set_fact:
+    iw_groupware_db: "{{ (iw_disc_gw.stdout.split(':', 1)[1] | default('') | trim).split(';')[0] | trim }}"
+
+- name: Discover directory cache database name
+  when: iw_directorycache_db | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - C_Accounts_Global_Accounts_DirectoryCacheConnectionString
+  register: iw_disc_dc
+  changed_when: false
+  check_mode: false
+
+- name: Set directory cache database name
+  when: iw_directorycache_db | length == 0
+  ansible.builtin.set_fact:
+    iw_directorycache_db: "{{ (iw_disc_dc.stdout.split(':', 1)[1] | default('') | trim).split(';')[0] | trim }}"
+
+- name: Discover ActiveSync database name
+  when: iw_eas_db | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - C_ActiveSync_DBConnection
+  register: iw_disc_eas
+  changed_when: false
+  check_mode: false
+
+- name: Set ActiveSync database name
+  when: iw_eas_db | length == 0
+  ansible.builtin.set_fact:
+    iw_eas_db: "{{ iw_eas_db_parsed }}"
+  vars:
+    iw_eas_conn: "{{ iw_disc_eas.stdout.split(':', 1)[1] | default('') | trim }}"
+    iw_eas_db_eq: "{{ iw_eas_conn.split(';') | select('match', '(?i)^database=') | list }}"
+    iw_eas_db_parsed: "{{ (iw_eas_db_eq[0].split('=', 1)[1] | trim) if (iw_eas_db_eq | length > 0) else ((iw_eas_conn.split(';')[2].split('=', 1)[1] | trim) if (iw_eas_conn.split(';') | length > 2) else '') }}"
+
+- name: Discover mail storage root
+  when: iw_mail_path | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - C_System_Storage_Dir_MailPath
+  register: iw_disc_mail
+  changed_when: false
+  check_mode: false
+
+- name: Set mail storage root
+  when: iw_mail_path | length == 0
+  ansible.builtin.set_fact:
+    iw_mail_path: "{{ (iw_disc_mail.stdout.split(':', 1)[1] | default('') | trim).rstrip('/') }}"
+
+- name: Discover archive root
+  when: iw_archive_root | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - C_System_Tools_AutoArchive_Path
+  register: iw_disc_arch
+  changed_when: false
+  check_mode: false
+
+- name: Set archive root
+  when: iw_archive_root | length == 0
+  ansible.builtin.set_fact:
+    iw_archive_root: "{{ (iw_disc_arch.stdout.split(':', 1)[1] | default('') | trim).rstrip('/') }}"
+
+- name: Discover config path
+  when: iw_config_path | length == 0
+  ansible.builtin.command:
+    argv:
+      - "{{ iw_tool_sh }}"
+      - get
+      - system
+      - c_configpath
+  register: iw_disc_cfg
+  changed_when: false
+  check_mode: false
+
+- name: Set config path
+  when: iw_config_path | length == 0
+  ansible.builtin.set_fact:
+    iw_config_path: "{{ (iw_disc_cfg.stdout.split(':', 1)[1] | default('') | trim).rstrip('/') }}"
+
+- name: Derive domain mailbox and archive paths
+  ansible.builtin.set_fact:
+    iw_source_mailbox_path: "{{ iw_source_mailbox_path if (iw_source_mailbox_path | length > 0) else ((iw_mail_path.rstrip('/') ~ '/' ~ iw_source_domain) if (iw_mail_path | length > 0) else '') }}"
+    iw_dest_mailbox_path: "{{ iw_dest_mailbox_path if (iw_dest_mailbox_path | length > 0) else ((iw_mail_path.rstrip('/') ~ '/' ~ iw_dest_domain) if (iw_mail_path | length > 0) else '') }}"
+    iw_source_archive_path: "{{ iw_source_archive_path if (iw_source_archive_path | length > 0) else ((iw_archive_root.rstrip('/') ~ '/' ~ iw_source_domain) if (iw_archive_root | length > 0) else '') }}"
+    iw_dest_archive_path: "{{ iw_dest_archive_path if (iw_dest_archive_path | length > 0) else ((iw_archive_root.rstrip('/') ~ '/' ~ iw_dest_domain) if (iw_archive_root | length > 0) else '') }}"
+
+- name: Slurp webmail server.xml for database name
+  when: iw_webclient_db | length == 0
+  ansible.builtin.slurp:
+    src: "{{ iw_config_path.rstrip('/') }}/_webmail/server.xml"
+  register: iw_disc_wc_xml
+  check_mode: false
+
+- name: Set webclient database name
+  when: iw_webclient_db | length == 0
+  ansible.builtin.set_fact:
+    iw_webclient_db: "{{ iw_wc_db_parsed }}"
+  vars:
+    iw_wc_conn: "{{ iw_disc_wc_xml.content | b64decode | regex_search('<dbconn>(.*?)</dbconn>', '\\1') | default('') }}"
+    iw_wc_db_eq: "{{ iw_wc_conn.split(';') | select('match', '(?i)^database=') | list }}"
+    iw_wc_db_parsed: "{{ (iw_wc_db_eq[0].split('=', 1)[1] | regex_replace('</dbconn>$', '') | trim) if (iw_wc_db_eq | length > 0) else ((iw_wc_conn.split(';')[2].split('=', 1)[1] | regex_replace('</dbconn>$', '') | trim) if (iw_wc_conn.split(';') | length > 2) else '') }}"
+
+- name: Verify MySQL connectivity to IceWarp databases
+  ansible.builtin.shell:
+    cmd: mysql --batch -N {{ item | quote }} -e "SHOW TABLES;"
+  loop:
+    - "{{ iw_accounts_db }}"
+    - "{{ iw_groupware_db }}"
+    - "{{ iw_directorycache_db }}"
+    - "{{ iw_eas_db }}"
+    - "{{ iw_webclient_db }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: false
+  check_mode: false

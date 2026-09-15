@@ -3,18 +3,21 @@
   ansible.builtin.shell:
     cmd: >
       mysql --batch -N {{ iw_accounts_db | quote }} -e
-      "SELECT U_ID FROM Users
-      WHERE U_Mailbox = '{{ iw_mailbox_sql }}'
-      AND U_Domain = '{{ iw_source_domain_sql }}';"
+      "SELECT DISTINCT U_ID FROM Users
+      WHERE U_Domain = '{{ iw_source_domain_sql }}'
+      AND (U_Alias = '{{ iw_alias_db_sql }}' OR U_Alias = '{{ iw_source_username_sql }}');"
   register: iw_uid_query
   changed_when: false
-  failed_when: iw_uid_query.rc != 0 or not ((iw_uid_query.stdout | trim) is regex('^[0-9]+$'))
+  failed_when: >-
+    iw_uid_query.rc != 0
+    or (iw_uid_query.stdout_lines | length != 1)
+    or not ((iw_uid_query.stdout | trim) is regex('^[0-9]+$'))
 
 - name: Set accounts U_ID
   ansible.builtin.set_fact:
     iw_user_id: "{{ iw_uid_query.stdout | trim }}"
 
-- name: Update Users.U_Domain and Aliases.A_Domain
+- name: Update Users, Aliases, U_Mailbox, and U_ForwardOlderTo
   ansible.builtin.shell:
     cmd: |
       mysql --batch -N {{ iw_accounts_db | quote }} -e "
@@ -22,8 +25,33 @@
       UPDATE Users
         SET U_Domain = '{{ iw_dest_domain_sql }}'
         WHERE U_ID = {{ iw_user_id }};
+      {% if iw_custom_target | bool %}
+      UPDATE Users
+        SET U_Alias = '{{ iw_dest_username_sql }}'
+        WHERE U_ID = {{ iw_user_id }};
+      DELETE FROM Aliases WHERE A_UserID = {{ iw_user_id }};
+      INSERT INTO Aliases (A_Alias, A_Domain, A_UserID)
+        VALUES ('{{ iw_dest_username_sql }}', '{{ iw_dest_domain_sql }}', {{ iw_user_id }});
+      {% else %}
       UPDATE Aliases
         SET A_Domain = '{{ iw_dest_domain_sql }}'
         WHERE A_UserID = {{ iw_user_id }};
+      {% endif %}
+      UPDATE Users
+        SET U_Mailbox = '{{ iw_dest_domain_sql }}\\\\{{ iw_dest_username_sql }}.txt'
+        WHERE U_ID = {{ iw_user_id }}
+          AND U_Mailbox = '{{ iw_source_domain_sql }}\\\\{{ iw_source_username_sql }}.txt';
+      UPDATE Users
+        SET U_Mailbox = '{{ iw_dest_domain_sql }}/{{ iw_dest_username_sql }}.txt;'
+        WHERE U_ID = {{ iw_user_id }}
+          AND U_Mailbox = '{{ iw_source_domain_sql }}/{{ iw_source_username_sql }}.txt;';
+      UPDATE Users
+        SET U_Mailbox = '{{ iw_dest_domain_sql }}/{{ iw_dest_username_sql }}.txt'
+        WHERE U_ID = {{ iw_user_id }}
+          AND U_Mailbox = '{{ iw_source_domain_sql }}/{{ iw_source_username_sql }}.txt';
+      UPDATE Users
+        SET U_ForwardOlderTo = '{{ iw_dest_domain_sql }}/{{ iw_dest_username_sql }}.txt'
+        WHERE U_ID = {{ iw_user_id }}
+          AND U_ForwardOlderTo = '{{ iw_source_domain_sql }}/{{ iw_source_username_sql }}.txt';
       COMMIT;
       "
