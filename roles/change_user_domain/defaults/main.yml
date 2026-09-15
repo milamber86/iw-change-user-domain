@@ -25,3 +25,7 @@ iw_config_path: ""
 iw_mail_path: ""
 iw_archive_root: ""
 iw_users: []
+
+# Move log on the IceWarp host. Empty iw_log_path = auto timestamped file in iw_log_dir.
+iw_log_dir: /root
+iw_log_path: ""

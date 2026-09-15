@@ -15,7 +15,23 @@
   vars:
     iw_disable_src: "{{ (iw_disable_item | string).split(',')[0] | trim }}"
     iw_disable_email: "{{ iw_disable_src if '@' in iw_disable_src else (iw_disable_src ~ '@' ~ iw_source_domain) }}"
+  register: iw_disable_all_r
+  failed_when: false
+
+- name: Log disable-login results
+  ansible.builtin.include_tasks: log.yml
+  loop: "{{ iw_disable_all_r.results }}"
+  loop_control:
+    loop_var: iw_disable_log
+    label: "{{ iw_disable_log.item }}"
+  vars:
+    iw_log_message: "{{ 'OK' if (iw_disable_log.rc | default(1) | int == 0) else 'FAIL' }}  disable {{ iw_disable_log.item }} rc={{ iw_disable_log.rc | default('n/a') }}"
 
 - name: Mark IceWarp restart as required
   ansible.builtin.set_fact:
     iw_restart_needed: true
+
+- name: Fail if any account could not be disabled
+  when: iw_disable_all_r.results | selectattr('rc', 'ne', 0) | list | length > 0
+  ansible.builtin.fail:
+    msg: "Failed to disable one or more accounts. See {{ iw_log_path }}"

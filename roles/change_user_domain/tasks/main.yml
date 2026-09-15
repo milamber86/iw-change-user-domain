@@ -8,53 +8,69 @@
     fail_msg: "iw_source_domain and iw_dest_domain are required and must differ."
     quiet: true
 
-- name: Discover IceWarp databases and paths
-  ansible.builtin.include_tasks: discover.yml
-
-- name: Assert discovered databases and paths are set
-  ansible.builtin.assert:
-    that:
-      - iw_accounts_db | length > 0
-      - iw_groupware_db | length > 0
-      - iw_directorycache_db | length > 0
-      - iw_eas_db | length > 0
-      - iw_webclient_db | length > 0
-      - iw_mail_path | length > 0 or iw_source_mailbox_path | length > 0
-      - iw_source_mailbox_path | length > 0
-      - iw_dest_mailbox_path | length > 0
-      - iw_source_archive_path | length > 0
-      - iw_dest_archive_path | length > 0
-      - iw_config_path | length > 0
-    fail_msg: >-
-      Could not discover IceWarp database names or paths. Set them in inventory
-      or extra-vars. See inventory/group_vars/all.example.yml.
-    quiet: true
-
-- name: Normalize paths
-  ansible.builtin.set_fact:
-    iw_source_mailbox_path_n: "{{ iw_source_mailbox_path.rstrip('/') }}"
-    iw_dest_mailbox_path_n: "{{ iw_dest_mailbox_path.rstrip('/') }}"
-    iw_source_archive_path_n: "{{ iw_source_archive_path.rstrip('/') }}"
-    iw_dest_archive_path_n: "{{ iw_dest_archive_path.rstrip('/') }}"
-    iw_config_path_n: "{{ iw_config_path.rstrip('/') }}"
-    iw_mail_path_n: "{{ iw_mail_path.rstrip('/') if (iw_mail_path | length > 0) else iw_source_mailbox_path.rstrip('/') | dirname }}"
-    iw_restart_needed: "{{ iw_restart_needed | default(false) | bool }}"
-
-- name: Ensure destination domain and directories
-  ansible.builtin.include_tasks: ensure_dest_domain.yml
-
-- name: Resolve the account list
-  ansible.builtin.include_tasks: resolve_account_list.yml
-
-- name: Assert at least one account will be migrated
-  ansible.builtin.assert:
-    that:
-      - iw_users_resolved | length > 0
-    fail_msg: "No accounts to migrate. Set iw_users / iw_user or export from the source domain."
-    quiet: true
+- name: Initialize domain-change log
+  ansible.builtin.include_tasks: init_log.yml
 
 - name: Change account domains
   block:
+    - name: Discover IceWarp databases and paths
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Assert discovered databases and paths are set
+      ansible.builtin.assert:
+        that:
+          - iw_accounts_db | length > 0
+          - iw_groupware_db | length > 0
+          - iw_directorycache_db | length > 0
+          - iw_eas_db | length > 0
+          - iw_webclient_db | length > 0
+          - iw_mail_path | length > 0 or iw_source_mailbox_path | length > 0
+          - iw_source_mailbox_path | length > 0
+          - iw_dest_mailbox_path | length > 0
+          - iw_source_archive_path | length > 0
+          - iw_dest_archive_path | length > 0
+          - iw_config_path | length > 0
+        fail_msg: >-
+          Could not discover IceWarp database names or paths. Set them in inventory
+          or extra-vars. See inventory/group_vars/all.example.yml.
+        quiet: true
+
+    - name: Log discovered databases and paths
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: >-
+          DISCOVER acc={{ iw_accounts_db }} gw={{ iw_groupware_db }} dc={{ iw_directorycache_db }}
+          eas={{ iw_eas_db }} wc={{ iw_webclient_db }} mail={{ iw_source_mailbox_path }}->{{ iw_dest_mailbox_path }}
+          archive={{ iw_source_archive_path }}->{{ iw_dest_archive_path }} config={{ iw_config_path }}
+
+    - name: Normalize paths
+      ansible.builtin.set_fact:
+        iw_source_mailbox_path_n: "{{ iw_source_mailbox_path.rstrip('/') }}"
+        iw_dest_mailbox_path_n: "{{ iw_dest_mailbox_path.rstrip('/') }}"
+        iw_source_archive_path_n: "{{ iw_source_archive_path.rstrip('/') }}"
+        iw_dest_archive_path_n: "{{ iw_dest_archive_path.rstrip('/') }}"
+        iw_config_path_n: "{{ iw_config_path.rstrip('/') }}"
+        iw_mail_path_n: "{{ iw_mail_path.rstrip('/') if (iw_mail_path | length > 0) else iw_source_mailbox_path.rstrip('/') | dirname }}"
+        iw_restart_needed: "{{ iw_restart_needed | default(false) | bool }}"
+
+    - name: Ensure destination domain and directories
+      ansible.builtin.include_tasks: ensure_dest_domain.yml
+
+    - name: Resolve the account list
+      ansible.builtin.include_tasks: resolve_account_list.yml
+
+    - name: Assert at least one account will be migrated
+      ansible.builtin.assert:
+        that:
+          - iw_users_resolved | length > 0
+        fail_msg: "No accounts to migrate. Set iw_users / iw_user or export from the source domain."
+        quiet: true
+
+    - name: Log resolved account list
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: "ACCOUNTS {{ iw_users_resolved | length }} {{ iw_users_resolved | join(' ') }}"
+
     - name: Disable all selected accounts
       when: not ansible_check_mode
       ansible.builtin.include_tasks: disable_all.yml
@@ -66,7 +82,14 @@
           - "{{ iw_icewarpd }}"
           - --restart
           - all
+      register: iw_restart_after_disable
       timeout: 600
+
+    - name: Log restart after disable
+      when: not ansible_check_mode
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: "OK  icewarpd --restart all (after disable) rc={{ iw_restart_after_disable.rc | default('skipped') }}"
 
     - name: Process each account
       ansible.builtin.include_tasks: process_user.yml
@@ -81,5 +104,29 @@
           - "{{ iw_icewarpd }}"
           - --restart
           - all
-      when: iw_restart_needed | bool
+      register: iw_restart_final
+      when: iw_restart_needed | default(false) | bool
       timeout: 600
+      failed_when: false
+
+    - name: Log final restart
+      when: iw_restart_needed | default(false) | bool
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: "{{ 'OK' if (iw_restart_final.rc | default(1) | int == 0) else 'FAIL' }}  icewarpd --restart all (final) rc={{ iw_restart_final.rc | default('n/a') }}"
+
+    - name: Log play end
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: "END log={{ iw_log_path }}"
+
+    - name: Show domain-change log path
+      ansible.builtin.debug:
+        msg: "Domain change log: {{ iw_log_path }}"
+
+    - name: Fail if final IceWarp restart failed
+      when:
+        - iw_restart_needed | default(false) | bool
+        - iw_restart_final.rc | default(0) | int != 0
+      ansible.builtin.fail:
+        msg: "icewarpd --restart all failed with rc={{ iw_restart_final.rc }}. See {{ iw_log_path }}"

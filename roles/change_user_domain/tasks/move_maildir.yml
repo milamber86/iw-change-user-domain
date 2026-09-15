@@ -1,4 +1,10 @@
 ---
+- name: Log skipped maildir move
+  when: not (iw_maildir_present | bool)
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "SKIP maildir (absent) {{ iw_src_maildir }}"
+
 - name: Move maildir to the destination domain path
   when: iw_maildir_present | bool
   ansible.builtin.command:
@@ -6,6 +12,7 @@
       - mv
       - "{{ iw_src_maildir }}"
       - "{{ iw_dst_maildir }}"
+  register: iw_mv_maildir
 
 - name: Set maildir ownership
   when: iw_maildir_present | bool
@@ -14,3 +21,9 @@
     owner: "{{ iw_owner }}"
     group: "{{ iw_group }}"
     recurse: true
+
+- name: Log maildir move
+  when: iw_maildir_present | bool
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  maildir mv {{ iw_src_maildir }} -> {{ iw_dst_maildir }} rc={{ iw_mv_maildir.rc | default('n/a') }}"

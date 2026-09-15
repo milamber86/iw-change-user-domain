@@ -7,3 +7,9 @@
       SET search_path = REPLACE(search_path, '{{ iw_dircache_old_prefix_sql }}', '{{ iw_dircache_new_prefix_sql }}')
       WHERE search_path = '{{ iw_dircache_old_prefix_sql }}'
          OR search_path LIKE '{{ iw_dircache_old_prefix_sql }}/%';"
+  register: iw_dircache_update
+
+- name: Log directory cache update
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  directorycache {{ iw_dircache_old_prefix }} -> {{ iw_dircache_new_prefix }} rc={{ iw_dircache_update.rc | default('n/a') }}"

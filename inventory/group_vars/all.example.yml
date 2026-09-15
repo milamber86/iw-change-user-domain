@@ -26,6 +26,10 @@ iw_users:
 # Optional. Leave login disabled after the move (u_accountdisabled 2).
 # iw_enable_login_after: false
 
+# Optional. Move log on the IceWarp host (default: /root/iw-change-user-domain-<timestamp>.log).
+# iw_log_dir: /root
+# iw_log_path: /root/iw-change-user-domain.log
+
 # Optional paths and ownership.
 # iw_tool_sh: /opt/icewarp/tool.sh
 # iw_icewarpd: /opt/icewarp/icewarpd.sh

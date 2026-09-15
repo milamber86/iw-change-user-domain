@@ -1,0 +1,31 @@
+---
+- name: Generate log timestamp
+  when: iw_log_path | default('') | length == 0
+  ansible.builtin.command:
+    argv:
+      - date
+      - +%Y%m%d-%H%M%S
+  register: iw_log_stamp
+  changed_when: false
+  check_mode: false
+
+- name: Set domain-change log path
+  ansible.builtin.set_fact:
+    iw_log_path: "{{ iw_log_path if (iw_log_path | default('') | length > 0) else (iw_log_dir.rstrip('/') ~ '/iw-change-user-domain-' ~ (iw_log_stamp.stdout | default('run')) ~ '.log') }}"
+
+- name: Create domain-change log file
+  ansible.builtin.copy:
+    dest: "{{ iw_log_path }}"
+    mode: "0644"
+    content: |
+      # IceWarp domain change log
+      # host={{ inventory_hostname }}
+      # source={{ iw_source_domain }} dest={{ iw_dest_domain }}
+      # check_mode={{ ansible_check_mode }}
+      #
+  check_mode: false
+
+- name: Log play start
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "START {{ iw_source_domain }} -> {{ iw_dest_domain }}"

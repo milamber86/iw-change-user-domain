@@ -6,3 +6,9 @@
       "UPDATE devices
       SET user_id = '{{ iw_dest_email_sql }}'
       WHERE user_id = '{{ iw_source_email_sql }}';"
+  register: iw_eas_update
+
+- name: Log ActiveSync update
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  eas devices.user_id {{ iw_source_email }} -> {{ iw_dest_email }} rc={{ iw_eas_update.rc | default('n/a') }}"

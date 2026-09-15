@@ -7,3 +7,9 @@
       SET account_id = '{{ iw_dest_email_sql }}',
           path = REPLACE(path, '{{ iw_src_maildir_sql }}', '{{ iw_dst_maildir_sql }}')
       WHERE account_id = '{{ iw_source_email_sql }}';"
+  register: iw_webclient_update
+
+- name: Log webclient folder update
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  webclient folder {{ iw_source_email }} -> {{ iw_dest_email }} rc={{ iw_webclient_update.rc | default('n/a') }}"

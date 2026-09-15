@@ -38,6 +38,19 @@
         WHERE GRPOWN_ID IN ({{ iw_gw_own_ids_sql }});
       COMMIT;
       "
+  register: iw_gw_owner_update
+
+- name: Log EventOwner and EventGroup skip
+  when: iw_gw_own_query.stdout | trim | length == 0
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "SKIP groupware EventOwner (no row) {{ iw_source_email }}"
+
+- name: Log EventOwner and EventGroup update
+  when: iw_gw_own_query.stdout | trim | length > 0
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  groupware EventOwner/EventGroup {{ iw_source_email }} -> {{ iw_dest_email }} rc={{ iw_gw_owner_update.rc | default('n/a') }}"
 
 - name: Update remaining groupware email columns
   ansible.builtin.shell:
@@ -74,3 +87,9 @@
         SET MenLinkEmail = '{{ iw_dest_email_sql }}'
         WHERE MenLinkEmail = '{{ iw_source_email_sql }}';
       "
+  register: iw_gw_extra_update
+
+- name: Log remaining groupware email updates
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  groupware folderrights/contacts/pins/mentions {{ iw_source_email }} -> {{ iw_dest_email }} rc={{ iw_gw_extra_update.rc | default('n/a') }}"

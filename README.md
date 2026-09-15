@@ -23,6 +23,8 @@ Database names and mailbox/archive/config paths are discovered from `tool.sh` an
    - Rewrite `u_mailboxpath` (not for executables), `~webmail/settings.xml`, refresh directory cache, queue full-text reindex, and re-enable login.
 6. Restart IceWarp again.
 
+A timestamped log of each action and its result is written on the IceWarp host (default `/root/iw-change-user-domain-<timestamp>.log`). Ansible prints that path when the play finishes.
+
 ## Requirements
 
 - Ansible 2.14+ on the control node

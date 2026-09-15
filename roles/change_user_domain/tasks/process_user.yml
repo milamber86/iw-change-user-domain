@@ -2,6 +2,11 @@
 - name: Run preflight checks
   ansible.builtin.include_tasks: preflight.yml
 
+- name: Log account preflight
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "ACCOUNT {{ iw_source_email }} -> {{ iw_dest_email }} type={{ iw_account_type }} alias={{ iw_alias_db }} custom={{ iw_custom_target }}"
+
 - name: Mutate account on the IceWarp host
   when: not ansible_check_mode
   block:
@@ -31,3 +36,17 @@
 
     - name: Post-move account cleanup
       ansible.builtin.include_tasks: post_account.yml
+
+    - name: Log account success
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: "OK  finished {{ iw_source_email }} -> {{ iw_dest_email }}"
+  rescue:
+    - name: Log account failure
+      ansible.builtin.include_tasks: log.yml
+      vars:
+        iw_log_message: "FAIL {{ iw_source_email }} task={{ ansible_failed_task.name | default('unknown') }} {{ ansible_failed_result.msg | default(ansible_failed_result.stderr | default('')) | trim }}"
+
+    - name: Re-raise account migration failure
+      ansible.builtin.fail:
+        msg: "{{ ansible_failed_result.msg | default('Account migration failed for ' ~ iw_source_email) }}"

@@ -43,6 +43,12 @@
       - create
       - domain
       - "{{ iw_dest_domain }}"
+  register: iw_create_domain
+
+- name: Log destination domain create or skip
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "{{ ('OK  create domain ' ~ iw_dest_domain ~ ' rc=' ~ (iw_create_domain.rc | default('n/a') | string)) if ((not ansible_check_mode) and ('not found' in ((iw_dst_domain_export.stdout ~ iw_dst_domain_export.stderr) | lower))) else ('OK  destination domain exists ' ~ iw_dest_domain) }}"
 
 - name: Ensure destination mailbox, archive, and config directories exist
   when: not ansible_check_mode
@@ -55,3 +61,8 @@
     - "{{ iw_dest_mailbox_path_n }}"
     - "{{ iw_dest_archive_path_n }}"
     - "{{ iw_config_path_n }}/{{ iw_dest_domain }}"
+
+- name: Log destination directories
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  dest dirs {{ iw_dest_mailbox_path_n }} {{ iw_dest_archive_path_n }} {{ iw_config_path_n }}/{{ iw_dest_domain }}"

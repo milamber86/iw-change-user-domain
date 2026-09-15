@@ -38,6 +38,21 @@
       - "{{ iw_dest_email }}"
       - u_mailboxpath
       - "{{ iw_new_mailboxpath }}"
+  register: iw_set_mailboxpath
+
+- name: Log u_mailboxpath skip
+  when: iw_account_type | int == 2 or (iw_new_mailboxpath | default('') | length == 0)
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "SKIP u_mailboxpath type={{ iw_account_type }} {{ iw_dest_email }}"
+
+- name: Log u_mailboxpath set
+  when:
+    - iw_account_type | int != 2
+    - iw_new_mailboxpath | default('') | length > 0
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  u_mailboxpath {{ iw_dest_email }} {{ iw_new_mailboxpath }} rc={{ iw_set_mailboxpath.rc | default('n/a') }}"
 
 - name: Stat destination webmail settings.xml
   ansible.builtin.stat:
@@ -50,6 +65,12 @@
     path: "{{ iw_dst_maildir }}/~webmail/settings.xml"
     regexp: "{{ (iw_source_email if (iw_custom_target | bool) else iw_source_domain) | regex_escape }}"
     replace: "{{ iw_dest_email if (iw_custom_target | bool) else iw_dest_domain }}"
+  register: iw_settings_replace
+
+- name: Log settings.xml rewrite
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "{{ 'OK  settings.xml ' ~ iw_dst_maildir ~ '/~webmail/settings.xml' if (iw_settings_xml_stat.stat.exists | default(false)) else ('SKIP settings.xml (absent) ' ~ iw_dst_maildir) }}"
 
 - name: Refresh destination directory cache
   ansible.builtin.command:
@@ -60,6 +81,12 @@
       - "{{ iw_dest_email }}"
       - u_directorycache_refreshnow
       - "1"
+  register: iw_dircache_refresh
+
+- name: Log directory cache refresh
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  u_directorycache_refreshnow {{ iw_dest_email }} rc={{ iw_dircache_refresh.rc | default('n/a') }}"
 
 - name: Queue full-text reindex
   ansible.builtin.command:
@@ -70,6 +97,12 @@
       - "{{ iw_dest_email }}"
       - U_Fulltext_ReindexAccount
       - "1"
+  register: iw_fulltext_reindex
+
+- name: Log full-text reindex
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  U_Fulltext_ReindexAccount {{ iw_dest_email }} rc={{ iw_fulltext_reindex.rc | default('n/a') }}"
 
 - name: Re-enable destination account login
   when: iw_enable_login_after | bool
@@ -81,3 +114,9 @@
       - "{{ iw_dest_email }}"
       - u_accountdisabled
       - "0"
+  register: iw_enable_login
+
+- name: Log login re-enable
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "{{ ('OK  enable ' ~ iw_dest_email ~ ' rc=' ~ (iw_enable_login.rc | default('n/a') | string)) if (iw_enable_login_after | bool) else ('SKIP enable (iw_enable_login_after=false) ' ~ iw_dest_email) }}"

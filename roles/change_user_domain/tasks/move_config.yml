@@ -1,4 +1,10 @@
 ---
+- name: Log skipped config move
+  when: not (iw_config_present | bool)
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "SKIP config (absent) {{ iw_src_config }}"
+
 - name: Move config file to the destination domain path
   when: iw_config_present | bool
   ansible.builtin.command:
@@ -6,6 +12,7 @@
       - mv
       - "{{ iw_src_config }}"
       - "{{ iw_dst_config }}"
+  register: iw_mv_config
 
 - name: Set config file ownership
   when: iw_config_present | bool
@@ -13,3 +20,9 @@
     path: "{{ iw_dst_config }}"
     owner: "{{ iw_owner }}"
     group: "{{ iw_group }}"
+
+- name: Log config move
+  when: iw_config_present | bool
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  config mv {{ iw_src_config }} -> {{ iw_dst_config }} rc={{ iw_mv_config.rc | default('n/a') }}"

@@ -1,4 +1,10 @@
 ---
+- name: Log skipped archive move
+  when: not (iw_archive_present | bool)
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "SKIP archive {{ iw_src_archive }}"
+
 - name: Move archive to the destination domain path
   when: iw_archive_present | bool
   ansible.builtin.command:
@@ -6,6 +12,7 @@
       - mv
       - "{{ iw_src_archive }}"
       - "{{ iw_dst_archive }}"
+  register: iw_mv_archive
 
 - name: Set archive ownership
   when: iw_archive_present | bool
@@ -14,3 +21,9 @@
     owner: "{{ iw_owner }}"
     group: "{{ iw_group }}"
     recurse: true
+
+- name: Log archive move
+  when: iw_archive_present | bool
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  archive mv {{ iw_src_archive }} -> {{ iw_dst_archive }} rc={{ iw_mv_archive.rc | default('n/a') }}"

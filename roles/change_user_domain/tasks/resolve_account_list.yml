@@ -24,3 +24,8 @@
     iw_users_from_user: "{{ [iw_user_as_item] }}"
     iw_users_from_list: "{{ [iw_users] if iw_users is string else (iw_users | default([])) }}"
     iw_users_from_export: "{{ ((iw_domain_acct_export.stdout_lines | default([])) if (iw_domain_acct_export is defined) else []) | map('trim') | select() | reject('match', '^##internalservicedomain') | map('regex_replace', ',.*$', '') | select() | list }}"
+
+- name: Log account-list source
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "{{ 'OK  account list from extra-var/inventory' if ((iw_user | default('') | string | length > 0) or (iw_users | default([]) | length > 0)) else ('OK  exported *@' ~ iw_source_domain) }}"

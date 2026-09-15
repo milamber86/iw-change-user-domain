@@ -55,3 +55,9 @@
           AND U_ForwardOlderTo = '{{ iw_source_domain_sql }}/{{ iw_source_username_sql }}.txt';
       COMMIT;
       "
+  register: iw_accounts_update
+
+- name: Log accounts database update
+  ansible.builtin.include_tasks: log.yml
+  vars:
+    iw_log_message: "OK  accounts SQL U_ID={{ iw_user_id }} {{ iw_source_email }} -> {{ iw_dest_email }} custom={{ iw_custom_target }} rc={{ iw_accounts_update.rc | default('n/a') }}"
