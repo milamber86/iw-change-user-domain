@@ -38,3 +38,11 @@
         WHERE GRPOWN_ID IN ({{ iw_gw_own_ids_sql }});
       COMMIT;
       "
+
+- name: Update TeamChat folderrights emails
+  ansible.builtin.shell:
+    cmd: >
+      mysql --batch -N {{ iw_groupware_db | quote }} -e
+      "UPDATE folderrights
+      SET FrtEmail = '{{ iw_dest_email_sql }}'
+      WHERE FrtEmail = '{{ iw_source_email_sql }}';"

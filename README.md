@@ -13,7 +13,7 @@ For each user:
 1. Verify the source account exists, the destination domain exists, and the destination account does not exist (`tool.sh`).
 2. Disable login (`u_accountdisabled 2`).
 3. Move the maildir. Skip-move the archive directory when it is absent.
-4. Update the accounts, groupware, directory cache, and webclient databases.
+4. Update the accounts, groupware (including TeamChat `folderrights`), directory cache, and webclient databases.
 5. Rewrite `u_mailboxpath`, `~webmail/settings.xml`, and trigger a directory-cache refresh.
 
 IceWarp services are restarted once at the end (`icewarpd.sh --restart all`). Login stays disabled unless `iw_enable_login_after` is true.
